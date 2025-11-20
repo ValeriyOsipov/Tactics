@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -9,11 +10,45 @@ const io = socketIo(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.get('/admin/dump-state', (req, res) => {
-  res.json(rooms);
-});
+app.get('/admin/dump-state', (req, res) => { res.json(rooms); });
 
-const rooms = {};
+// === НОВОЕ: файл для сохранения состояния ===
+const STATE_FILE = './rooms-state.json';
+
+// === Функция для загрузки состояния ===
+function loadState() {
+  if (fs.existsSync(STATE_FILE)) {
+    const data = fs.readFileSync(STATE_FILE, 'utf8');
+    try {
+      return JSON.parse(data);
+    } catch (e) {
+      console.error('Ошибка при загрузке состояния:', e);
+      return {};
+    }
+  }
+  return {};
+}
+
+// === Функция для сохранения состояния ===
+let saveTimeout = null;
+
+function saveState() {
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+  }
+  saveTimeout = setTimeout(() => {
+    try {
+      fs.writeFileSync(STATE_FILE, JSON.stringify(rooms, null, 2));
+      console.log('Состояние комнат сохранено');
+    } catch (e) {
+      console.error('Ошибка при сохранении состояния:', e);
+    }
+  }, 1000); // Сохраняем с задержкой 1 секунда
+}
+
+// === Загружаем состояние при запуске ===
+let rooms = loadState();
+console.log('Состояние комнат загружено');
 
 // Список карт
 const availableMaps = [
@@ -54,6 +89,8 @@ io.on('connection', (socket) => {
       currentMap: rooms[roomId].currentMap,
       users: Object.values(rooms[roomId].users)
     });
+
+    saveState(); // Сохраняем при входе
   });
 
   socket.on('add-object', (data) => {
@@ -62,6 +99,7 @@ io.on('connection', (socket) => {
     if (roomId && rooms[roomId] && rooms[roomId].maps[map]) {
       rooms[roomId].maps[map].objects.push(data);
       socket.to(roomId).emit('object-added', data);
+      saveState(); // Сохраняем при добавлении
     }
   });
 
@@ -75,6 +113,7 @@ io.on('connection', (socket) => {
         obj.y = data.y;
         if (data.label !== undefined) obj.label = data.label;
         socket.to(roomId).emit('object-updated', data);
+        saveState(); // Сохраняем при обновлении
       }
     }
   });
@@ -89,6 +128,7 @@ io.on('connection', (socket) => {
       socket.currentMap = data.map;
       socket.emit('map-changed', data);
       socket.to(roomId).emit('map-changed', data);
+      saveState(); // Сохраняем при смене карты
     }
   });
 
@@ -129,6 +169,14 @@ io.on('connection', (socket) => {
       delete rooms[roomId].users[socket.id];
       socket.to(roomId).emit('user-left', socket.id);
       console.log(`Пользователь ${socket.id} покинул комнату ${roomId}`);
+
+      // Если в комнате больше нет пользователей, можно удалить комнату
+      if (Object.keys(rooms[roomId].users).length === 0) {
+        delete rooms[roomId];
+        console.log(`Комната ${roomId} удалена (пустая)`);
+      }
+
+      saveState(); // Сохраняем при выходе
     }
   });
 });
@@ -136,5 +184,11 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+});
 
+// === Сохраняем состояние при завершении работы ===
+process.on('SIGINT', () => {
+  console.log('Сохраняем состояние перед завершением...');
+  saveState();
+  process.exit(0);
 });
