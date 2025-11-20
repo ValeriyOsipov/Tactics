@@ -22,6 +22,25 @@ redisClient.on('error', (err) => {
 
 redisClient.connect();
 
+app.get('/admin/dump-redis', async (req, res) => {
+  try {
+    const data = await redisClient.get('rooms');
+    res.json(data ? JSON.parse(data) : {});
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/admin/load-redis', express.json(), async (req, res) => {
+  try {
+    const newState = req.body;
+    await redisClient.set('rooms', JSON.stringify(newState));
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // === Функция для загрузки состояния из Redis ===
 async function loadState() {
   try {
@@ -202,3 +221,4 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
