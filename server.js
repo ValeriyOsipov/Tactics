@@ -9,6 +9,10 @@ const io = socketIo(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.get('/admin/dump-state', (req, res) => {
+  res.json(rooms);
+});
+
 const rooms = {};
 
 // Список карт
@@ -132,4 +136,5 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+
 });
