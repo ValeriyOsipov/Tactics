@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Тактический планшет</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="room-input">
+    <input type="text" id="room-id" placeholder="Введите ID комнаты">
+    <input type="text" id="user-name" placeholder="Введите ваше имя">
+    <button id="join-btn">Войти в комнату</button>
+  </div>
+
+  <div id="canvas-container" style="display:none;">
+    <div id="info-panel">
+      <h3>Комната: <span id="room-id-display"></span></h3>
+      <div>
+        <label>Карта: </label>
+        <select id="map-select">
+          <option value="Греция.jpeg">Греция.jpeg</option>
+        </select>
+      </div>
+      <ul id="users-list"></ul>
+    </div>
+    <canvas id="canvas"></canvas>
+    <div id="ships-panel">
+      <div class="ship-item" data-type="lk" data-color="red"><img src="ships/lk_red.svg" draggable="true" width="50" height="50"></div>
+      <div class="ship-item" data-type="kr" data-color="red"><img src="ships/kr_red.svg" draggable="true" width="50" height="50"></div>
+      <div class="ship-item" data-type="es" data-color="red"><img src="ships/es_red.svg" draggable="true" width="50" height="50"></div>
+      <div class="ship-item" data-type="lk" data-color="green"><img src="ships/lk_green.svg" draggable="true" width="50" height="50"></div>
+      <div class="ship-item" data-type="kr" data-color="green"><img src="ships/kr_green.svg" draggable="true" width="50" height="50"></div>
+      <div class="ship-item" data-type="es" data-color="green"><img src="ships/es_green.svg" draggable="true" width="50" height="50"></div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
