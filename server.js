@@ -2,7 +2,7 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
-const fs = require('fs');
+const { createClient } = require('redis');
 
 const app = express();
 const server = http.createServer(app);
@@ -12,43 +12,52 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/admin/dump-state', (req, res) => { res.json(rooms); });
 
-// === НОВОЕ: файл для сохранения состояния ===
-const STATE_FILE = './rooms-state.json';
+// === Подключение к Redis ===
+const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+const redisClient = createClient({ url: redisUrl });
 
-// === Функция для загрузки состояния ===
-function loadState() {
-  if (fs.existsSync(STATE_FILE)) {
-    const data = fs.readFileSync(STATE_FILE, 'utf8');
-    try {
+redisClient.on('error', (err) => {
+  console.error('Redis Client Error', err);
+});
+
+redisClient.connect();
+
+// === Функция для загрузки состояния из Redis ===
+async function loadState() {
+  try {
+    const data = await redisClient.get('rooms');
+    if (data) {
       return JSON.parse(data);
-    } catch (e) {
-      console.error('Ошибка при загрузке состояния:', e);
-      return {};
     }
+  } catch (e) {
+    console.error('Ошибка при загрузке состояния из Redis:', e);
   }
   return {};
 }
 
-// === Функция для сохранения состояния ===
-let saveTimeout = null;
-
-function saveState() {
-  if (saveTimeout) {
-    clearTimeout(saveTimeout);
+// === Функция для сохранения состояния в Redis ===
+async function saveState() {
+  try {
+    await redisClient.set('rooms', JSON.stringify(rooms));
+    console.log('Состояние комнат сохранено в Redis');
+  } catch (e) {
+    console.error('Ошибка при сохранении состояния в Redis:', e);
   }
-  saveTimeout = setTimeout(() => {
-    try {
-      fs.writeFileSync(STATE_FILE, JSON.stringify(rooms, null, 2));
-      console.log('Состояние комнат сохранено');
-    } catch (e) {
-      console.error('Ошибка при сохранении состояния:', e);
-    }
-  }, 1000); // Сохраняем с задержкой 1 секунда
 }
 
 // === Загружаем состояние при запуске ===
-let rooms = loadState();
-console.log('Состояние комнат загружено');
+let rooms = {};
+
+redisClient.get('rooms').then(data => {
+  if (data) {
+    rooms = JSON.parse(data);
+    console.log('Состояние комнат загружено из Redis');
+  } else {
+    console.log('Состояние комнат отсутствует в Redis, начинаем с пустого');
+  }
+}).catch(err => {
+  console.error('Ошибка при загрузке состояния:', err);
+});
 
 // Список карт
 const availableMaps = [
@@ -190,5 +199,6 @@ server.listen(PORT, () => {
 process.on('SIGINT', () => {
   console.log('Сохраняем состояние перед завершением...');
   saveState();
+  redisClient.quit();
   process.exit(0);
 });
