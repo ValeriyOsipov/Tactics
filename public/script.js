@@ -22,9 +22,6 @@ let isDragging = false;
 // Массив для хранения эффектов (кружков)
 let effects = [];
 
-// Флаг для оптимизации redraw
-let redrawPending = false;
-
 // Загрузка списка карт
 socket.emit('get-available-maps');
 
@@ -96,6 +93,8 @@ function scheduleRedraw() {
   }
 }
 
+let redrawPending = false;
+
 joinBtn.onclick = () => {
   const roomId = roomIdInput.value.trim();
   const userName = userNameInput.value.trim() || 'User';
@@ -131,6 +130,7 @@ socket.on('object-updated', (data) => {
   if (obj) {
     obj.x = data.x;
     obj.y = data.y;
+    if (data.label !== undefined) obj.label = data.label;
     allObjects[currentMap] = objects;
     scheduleRedraw();
   }
@@ -183,6 +183,14 @@ function redraw() {
         return;
       }
       ctx.drawImage(img, obj.x - img.width / 2, obj.y - img.height / 2);
+
+      // Рисуем подпись под кораблём
+      if (obj.label) {
+        ctx.font = '12px Arial';
+        ctx.fillStyle = 'yellow'; // Ярко-жёлтый цвет
+        ctx.textAlign = 'center';
+        ctx.fillText(obj.label, obj.x, obj.y + img.height / 2 + 15);
+      }
     } else if (obj.type === 'note') {
       ctx.font = '14px Arial';
       ctx.fillStyle = 'rgba(255, 255, 200, 0.9)';
@@ -196,7 +204,7 @@ function redraw() {
   effects.forEach((effect, index) => {
     const elapsed = Date.now() - effect.startTime;
     if (elapsed > effect.duration) {
-      effects.splice(index, 1); // Удаляем, если время вышло
+      effects.splice(index, 1);
       return;
     }
 
@@ -231,9 +239,6 @@ canvas.onclick = (e) => {
     maxRadius: 20
   });
   scheduleRedraw();
-
-  // Отправляем событие анимации всем
-  socket.emit('click-effect', { x, y });
 
   if (currentTool === 'note') {
     const text = prompt('Введите текст заметки:');
@@ -319,7 +324,8 @@ canvas.onmouseup = () => {
     // Отправляем анимацию при отпускании
     socket.emit('drag-end-effect', { x: selectedObject.x, y: selectedObject.y });
 
-    socket.emit('update-object', { id: selectedObject.id, x: selectedObject.x, y: selectedObject.y });
+    // Отправляем обновление с label
+    socket.emit('update-object', { id: selectedObject.id, x: selectedObject.x, y: selectedObject.y, label: selectedObject.label });
   }
   isDragging = false;
   selectedObject = null;
@@ -343,6 +349,40 @@ canvas.onmouseleave = () => {
   isDragging = false;
   selectedObject = null;
   canvas.style.cursor = 'default';
+};
+
+// Обработка **двойного клика** по кораблю
+canvas.ondblclick = (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  for (let i = objects.length - 1; i >= 0; i--) {
+    const obj = objects[i];
+    let inBounds = false;
+
+    if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
+      const img = shipImages[obj.type][obj.color];
+      if (img && img.complete) {
+        inBounds = x >= obj.x - img.width / 2 && x <= obj.x + img.width / 2 &&
+                   y >= obj.y - img.height / 2 && y <= obj.y + img.height / 2;
+      }
+    }
+
+    if (inBounds) {
+      // Открываем поле ввода для подписи
+      const newLabel = prompt('Введите подпись для корабля:', obj.label || '');
+      if (newLabel !== null) {
+        obj.label = newLabel;
+        allObjects[currentMap] = objects;
+        scheduleRedraw();
+
+        // Отправляем обновление подписи
+        socket.emit('update-object', { id: obj.id, x: obj.x, y: obj.y, label: obj.label });
+      }
+      return;
+    }
+  }
 };
 
 // Обработка перетаскивания корабля из панели
@@ -386,7 +426,7 @@ canvas.addEventListener('drop', (e) => {
   // Отправляем анимацию drop всем
   socket.emit('drop-effect', { x, y });
 
-  const obj = { id, type, x, y, color };
+  const obj = { id, type, x, y, color, label: '' };
   objects.push(obj);
   allObjects[currentMap] = objects;
   scheduleRedraw();
@@ -418,7 +458,7 @@ mapSelect.onchange = (e) => {
 socket.on('map-objects', (data) => {
   allObjects[data.map] = data.objects;
   if (data.map === currentMap) {
-    objects = data.objects;
+    objects = allObjects[data.map];
     loadBackground(currentMap);
     scheduleRedraw();
   }

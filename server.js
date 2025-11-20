@@ -31,6 +31,7 @@ io.on('connection', (socket) => {
     socket.join(roomId);
     if (!rooms[roomId]) {
       rooms[roomId] = { maps: {}, users: {}, currentMap: 'Греция.jpeg' };
+      console.log(`Комната создана: ${roomId}`);
     }
     if (!rooms[roomId].maps[rooms[roomId].currentMap]) {
       rooms[roomId].maps[rooms[roomId].currentMap] = { objects: [] };
@@ -40,6 +41,8 @@ io.on('connection', (socket) => {
 
     socket.roomId = roomId;
     socket.currentMap = rooms[roomId].currentMap;
+
+    console.log(`Пользователь ${socket.id} зашёл в комнату ${roomId}`);
 
     socket.to(roomId).emit('user-joined', rooms[roomId].users[socket.id]);
     socket.emit('room-data', {
@@ -66,6 +69,7 @@ io.on('connection', (socket) => {
       if (obj) {
         obj.x = data.x;
         obj.y = data.y;
+        if (data.label !== undefined) obj.label = data.label;
         socket.to(roomId).emit('object-updated', data);
       }
     }
@@ -120,6 +124,7 @@ io.on('connection', (socket) => {
     if (roomId && rooms[roomId]) {
       delete rooms[roomId].users[socket.id];
       socket.to(roomId).emit('user-left', socket.id);
+      console.log(`Пользователь ${socket.id} покинул комнату ${roomId}`);
     }
   });
 });
