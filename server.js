@@ -79,8 +79,6 @@ app.post('/admin/load-redis', express.json({ limit: '50mb' }), async (req, res) 
       }
     }
 
-    console.log('Новое состояние (после преобразования):', JSON.stringify(newState).substring(0, 100) + '...');
-
     // Обновляем и Redis, и память
     await redisClient.set('rooms', JSON.stringify(newState));
     rooms = newState; // Обновляем память
@@ -117,8 +115,6 @@ socket.on('join-room', ({ roomId, userName }) => {
     console.log(`Комната создана: ${roomId}`);
   }
 
-  console.log(`Состояние комнаты до обновления currentMap:`, rooms[roomId]);
-
   // === ИСПРАВЛЕНИЕ: Если на currentMap нет объектов, ищи карту с объектами ===
   let currentMap = rooms[roomId].currentMap;
   if (!rooms[roomId].maps[currentMap]?.objects?.length) {
@@ -146,7 +142,6 @@ socket.on('join-room', ({ roomId, userName }) => {
   socket.currentMap = currentMap; // Обновляем currentMap у сокета
 
   console.log(`Пользователь ${socket.id} зашёл в комнату ${roomId}`);
-  console.log(`Объекты на карте "${currentMap}":`, rooms[roomId].maps[currentMap].objects);
 
   socket.to(roomId).emit('user-joined', rooms[roomId].users[socket.id]);
   socket.emit('room-data', {
@@ -291,6 +286,7 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
 
 
 
