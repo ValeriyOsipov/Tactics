@@ -101,36 +101,47 @@ socket.on('join-room', ({ roomId, userName }) => {
     console.log(`Комната создана: ${roomId}`);
   }
 
-  console.log(`Комната: ${roomId}, currentMap: ${rooms[roomId].currentMap}`);
-  console.log(`Объекты на карте:`, rooms[roomId].maps[rooms[roomId].currentMap]?.objects || []);
-
-    // Убедимся, что в картах есть объекты
-    if (!rooms[roomId].maps[rooms[roomId].currentMap]) {
-      rooms[roomId].maps[rooms[roomId].currentMap] = { objects: [] };
+  // === ИСПРАВЛЕНИЕ: Если на currentMap нет объектов, ищи карту с объектами ===
+  let currentMap = rooms[roomId].currentMap;
+  if (!rooms[roomId].maps[currentMap]?.objects?.length) {
+    // Ищем карту с объектами
+    for (const mapName in rooms[roomId].maps) {
+      if (rooms[roomId].maps[mapName].objects.length > 0) {
+        currentMap = mapName;
+        rooms[roomId].currentMap = mapName; // Обновляем currentMap
+        console.log(`Текущая карта изменена на: ${mapName}`);
+        break;
+      }
     }
+  }
 
-    rooms[roomId].users[socket.id] = { id: socket.id, name: userName || `User ${Object.keys(rooms[roomId].users).length + 1}` };
+  if (!rooms[roomId].maps[currentMap]) {
+    rooms[roomId].maps[currentMap] = { objects: [] };
+  }
 
-    socket.roomId = roomId;
-    socket.currentMap = rooms[roomId].currentMap;
+  rooms[roomId].users[socket.id] = { id: socket.id, name: userName || `User ${Object.keys(rooms[roomId].users).length + 1}` };
 
-    console.log(`Пользователь ${socket.id} зашёл в комнату ${roomId}`);
+  socket.roomId = roomId;
+  socket.currentMap = currentMap; // Обновляем currentMap у сокета
 
-    socket.to(roomId).emit('user-joined', rooms[roomId].users[socket.id]);
-    socket.emit('room-data', {
-      objects: rooms[roomId].maps[rooms[roomId].currentMap].objects,
-      currentMap: rooms[roomId].currentMap,
-      users: Object.values(rooms[roomId].users)
-    });
+  console.log(`Пользователь ${socket.id} зашёл в комнату ${roomId}`);
+  console.log(`Объекты на карте:`, rooms[roomId].maps[currentMap].objects);
 
-    // === Сохраняем сразу ===
-    try {
-      redisClient.set('rooms', JSON.stringify(rooms));
-      console.log('Состояние комнат сохранено в Redis (join-room)');
-    } catch (e) {
-      console.error('Ошибка при сохранении состояния в Redis (join-room):', e);
-    }
+  socket.to(roomId).emit('user-joined', rooms[roomId].users[socket.id]);
+  socket.emit('room-data', {
+    objects: rooms[roomId].maps[currentMap].objects,
+    currentMap: currentMap,
+    users: Object.values(rooms[roomId].users)
   });
+
+  // === Сохраняем сразу ===
+  try {
+    redisClient.set('rooms', JSON.stringify(rooms));
+    console.log('Состояние комнат сохранено в Redis (join-room)');
+  } catch (e) {
+    console.error('Ошибка при сохранении состояния в Redis (join-room):', e);
+  }
+});
 
   socket.on('add-object', (data) => {
     const roomId = socket.roomId;
@@ -259,4 +270,5 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
 
