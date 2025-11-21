@@ -96,11 +96,13 @@ io.on('connection', (socket) => {
 socket.on('join-room', ({ roomId, userName }) => {
   socket.join(roomId);
 
+  // === ИСПРАВЛЕНИЕ: Не пересоздаём комнату, если она уже есть ===
   if (!rooms[roomId]) {
     rooms[roomId] = { maps: {}, users: {}, currentMap: 'Греция.jpeg' };
     console.log(`Комната создана: ${roomId}`);
   }
 
+  // Убедимся, что в картах есть объекты
   if (!rooms[roomId].maps[rooms[roomId].currentMap]) {
     rooms[roomId].maps[rooms[roomId].currentMap] = { objects: [] };
   }
@@ -119,7 +121,7 @@ socket.on('join-room', ({ roomId, userName }) => {
     users: Object.values(rooms[roomId].users)
   });
 
-  // === ИСПРАВЛЕНИЕ: Сохраним сразу, без задержки ===
+  // === Сохраняем сразу ===
   try {
     redisClient.set('rooms', JSON.stringify(rooms));
     console.log('Состояние комнат сохранено в Redis (join-room)');
@@ -213,26 +215,21 @@ try {
     }
   });
 
-  socket.on('disconnect', () => {
-    const roomId = socket.roomId;
-    if (roomId && rooms[roomId]) {
-      delete rooms[roomId].users[socket.id];
-      socket.to(roomId).emit('user-left', socket.id);
-      console.log(`Пользователь ${socket.id} покинул комнату ${roomId}`);
+socket.on('disconnect', () => {
+  const roomId = socket.roomId;
+  if (roomId && rooms[roomId]) {
+    delete rooms[roomId].users[socket.id];
+    socket.to(roomId).emit('user-left', socket.id);
+    console.log(`Пользователь ${socket.id} покинул комнату ${roomId}`);
 
-      // Если в комнате больше нет пользователей, можно удалить комнату
-      if (Object.keys(rooms[roomId].users).length === 0) {
-        delete rooms[roomId];
-        console.log(`Комната ${roomId} удалена (пустая)`);
-      }
-try {
-  redisClient.set('rooms', JSON.stringify(rooms));
-  console.log('Состояние комнат сохранено в Redis (disconnect)');
-} catch (e) {
-  console.error('Ошибка при сохранении состояния в Redis (disconnect):', e);
-}
+    // Всегда сохраняем, даже если пользователь ушёл
+    try {
+      redisClient.set('rooms', JSON.stringify(rooms));
+      console.log('Состояние комнат сохранено в Redis (disconnect)');
+    } catch (e) {
+      console.error('Ошибка при сохранении состояния в Redis (disconnect):', e);
     }
-  });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
@@ -252,6 +249,7 @@ try {
   redisClient.quit();
   process.exit(0);
 });
+
 
 
 
