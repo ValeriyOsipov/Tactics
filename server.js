@@ -62,8 +62,24 @@ app.get('/admin/dump-redis', async (req, res) => {
 app.post('/admin/load-redis', express.json({ limit: '50mb' }), async (req, res) => {
   console.log('Получен запрос на загрузку состояния в Redis');
   try {
-    const newState = req.body;
-    console.log('Новое состояние:', JSON.stringify(newState).substring(0, 100) + '...');
+    let newState = req.body;
+
+    // === ИСПРАВЛЕНИЕ: Преобразуем старый формат в новый ===
+    for (const roomId in newState) {
+      const room = newState[roomId];
+      if (room.maps) {
+        for (const mapName in room.maps) {
+          const map = room.maps[mapName];
+          if (Array.isArray(map)) {
+            // Это старый формат: maps[mapName] = [...]
+            room.maps[mapName] = { objects: map };
+            console.log(`Карта "${mapName}" в комнате "${roomId}" преобразована в новый формат`);
+          }
+        }
+      }
+    }
+
+    console.log('Новое состояние (после преобразования):', JSON.stringify(newState).substring(0, 100) + '...');
 
     // Обновляем и Redis, и память
     await redisClient.set('rooms', JSON.stringify(newState));
@@ -275,6 +291,7 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
 
 
 
