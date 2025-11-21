@@ -36,8 +36,12 @@ app.post('/admin/load-redis', express.json({ limit: '50mb' }), async (req, res) 
   try {
     const newState = req.body;
     console.log('Новое состояние:', JSON.stringify(newState).substring(0, 100) + '...');
+
+    // Обновляем и Redis, и память
     await redisClient.set('rooms', JSON.stringify(newState));
-    console.log('Состояние успешно сохранено в Redis');
+    rooms = newState; // Обновляем память
+
+    console.log('Состояние успешно сохранено в Redis и обновлено в памяти');
     res.json({ success: true });
   } catch (e) {
     console.error('Ошибка при загрузке состояния в Redis:', e);
@@ -225,5 +229,6 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
 
 
