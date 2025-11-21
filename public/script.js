@@ -99,10 +99,13 @@ function animate() {
   requestAnimationFrame(animate);
 }
 
+// === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ===
+let bgImage = new Image();
+let bgLoaded = false;
+let shipImages = {};
+
 // Запускаем анимацию один раз
 animate();
-
-// ... (все остальные части остаются без изменений)
 
 // Загрузка списка карт
 socket.emit('get-available-maps');
@@ -119,8 +122,6 @@ socket.on('available-maps', (maps) => {
 });
 
 // Загрузка SVG-изображений кораблей
-const shipImages = {};
-
 ['lk', 'kr', 'es'].forEach(type => {
   shipImages[type] = {};
   ['red', 'green'].forEach(color => {
@@ -141,9 +142,6 @@ const shipImages = {};
 });
 
 // Загрузка фона
-let bgImage = new Image();
-let bgLoaded = false;
-
 function loadBackground(map) {
   bgImage = new Image();
   bgImage.src = `maps/${map}`;
