@@ -109,9 +109,9 @@ joinBtn.onclick = () => {
 
 socket.on('room-data', (data) => {
   allObjects = {};
-  allObjects[data.currentMap] = data.objects;
+  allObjects[data.currentMap] = data.objects || []; // Убедимся, что массив
   currentMap = data.currentMap;
-  objects = allObjects[currentMap];
+  objects = allObjects[currentMap]; // Уже массив
 
   mapSelect.value = currentMap;
   loadBackground(currentMap);
@@ -456,7 +456,7 @@ mapSelect.onchange = (e) => {
 
 // Обработка получения объектов для карты
 socket.on('map-objects', (data) => {
-  allObjects[data.map] = data.objects;
+  allObjects[data.map] = data.objects || []; // Убедимся, что массив
   if (data.map === currentMap) {
     objects = allObjects[data.map];
     loadBackground(currentMap);
@@ -475,4 +475,5 @@ socket.on('map-changed', (data) => {
     loadBackground(currentMap);
     scheduleRedraw();
   }
+
 });
