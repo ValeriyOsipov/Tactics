@@ -108,10 +108,13 @@ joinBtn.onclick = () => {
 };
 
 socket.on('room-data', (data) => {
+  console.log('Получены данные комнаты:', data);
   allObjects = {};
   allObjects[data.currentMap] = data.objects || []; // Убедимся, что массив
   currentMap = data.currentMap;
   objects = allObjects[currentMap]; // Уже массив
+
+  console.log('objects для активной карты:', objects);
 
   mapSelect.value = currentMap;
   loadBackground(currentMap);
@@ -160,6 +163,8 @@ function updateUsersList(users) {
 
 // Рендер всех объектов и эффектов
 function redraw() {
+  console.log('redraw вызван, objects:', objects, 'currentMap:', currentMap);
+
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   if (!currentMap) {
@@ -172,6 +177,7 @@ function redraw() {
   }
 
   objects.forEach(obj => {
+    console.log('Рисуем объект:', obj);
     if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
       const img = shipImages[obj.type][obj.color];
       if (!img) {
@@ -477,3 +483,4 @@ socket.on('map-changed', (data) => {
   }
 
 });
+
