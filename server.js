@@ -31,12 +31,16 @@ app.get('/admin/dump-redis', async (req, res) => {
   }
 });
 
-app.post('/admin/load-redis', express.json(), async (req, res) => {
+app.post('/admin/load-redis', express.json({ limit: '50mb' }), async (req, res) => {
+  console.log('Получен запрос на загрузку состояния в Redis');
   try {
     const newState = req.body;
+    console.log('Новое состояние:', JSON.stringify(newState).substring(0, 100) + '...');
     await redisClient.set('rooms', JSON.stringify(newState));
+    console.log('Состояние успешно сохранено в Redis');
     res.json({ success: true });
   } catch (e) {
+    console.error('Ошибка при загрузке состояния в Redis:', e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -221,4 +225,5 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
 
