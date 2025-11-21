@@ -116,6 +116,7 @@ socket.on('join-room', ({ roomId, userName }) => {
     }
   }
 
+  // === ИСПРАВЛЕНИЕ: Убедимся, что карта существует ===
   if (!rooms[roomId].maps[currentMap]) {
     rooms[roomId].maps[currentMap] = { objects: [] };
   }
@@ -272,6 +273,7 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
 
 
 
