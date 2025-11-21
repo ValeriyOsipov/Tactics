@@ -19,8 +19,50 @@ let selectedObject = null;
 let offsetX, offsetY;
 let isDragging = false;
 
-// Массив для хранения эффектов (кружков)
-let effects = [];
+// === НОВАЯ АНИМАЦИЯ ===
+const ripples = [];
+
+class Ripple {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.radius = 0;
+    this.maxRadius = 20;
+    this.speed = 1.2;
+    this.alpha = 1;
+    this.decay = 0.03;
+  }
+
+  update() {
+    this.radius += this.speed;
+    this.alpha -= this.decay;
+    return this.alpha > 0;
+  }
+
+  draw(ctx) {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255, 0, 0, ${this.alpha})`; // Красный цвет
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+}
+
+function animateRipples() {
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    if (!ripples[i].update()) {
+      ripples.splice(i, 1);
+    } else {
+      ripples[i].draw(ctx);
+    }
+  }
+  requestAnimationFrame(animateRipples);
+}
+
+// Запускаем анимацию один раз
+animateRipples();
+
+// ... (все остальные части остаются без изменений)
 
 // Загрузка списка карт
 socket.emit('get-available-maps');
@@ -109,9 +151,9 @@ joinBtn.onclick = () => {
 
 socket.on('room-data', (data) => {
   allObjects = {};
-  allObjects[data.currentMap] = data.objects || []; // Убедимся, что массив
+  allObjects[data.currentMap] = data.objects || [];
   currentMap = data.currentMap;
-  objects = allObjects[currentMap]; // Уже массив
+  objects = allObjects[currentMap];
 
   mapSelect.value = currentMap;
   loadBackground(currentMap);
@@ -158,7 +200,7 @@ function updateUsersList(users) {
   });
 }
 
-// Рендер всех объектов и эффектов
+// Рендер всех объектов
 function redraw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -187,7 +229,7 @@ function redraw() {
       // Рисуем подпись под кораблём
       if (obj.label) {
         ctx.font = '12px Arial';
-        ctx.fillStyle = 'yellow'; // Ярко-жёлтый цвет
+        ctx.fillStyle = 'yellow';
         ctx.textAlign = 'center';
         ctx.fillText(obj.label, obj.x, obj.y + img.height / 2 + 15);
       }
@@ -200,24 +242,7 @@ function redraw() {
     }
   });
 
-  // Рисуем эффекты (кружки)
-  effects.forEach((effect, index) => {
-    const elapsed = Date.now() - effect.startTime;
-    if (elapsed > effect.duration) {
-      effects.splice(index, 1);
-      return;
-    }
-
-    const progress = elapsed / effect.duration;
-    const radius = effect.startRadius + (effect.maxRadius - effect.startRadius) * progress;
-    const alpha = 1 - progress;
-
-    ctx.beginPath();
-    ctx.arc(effect.x, effect.y, radius, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(255, 0, 0, ${alpha})`;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  });
+  // Анимация рисуется отдельно через requestAnimationFrame
 }
 
 // Обработка кликов по canvas
@@ -229,16 +254,8 @@ canvas.onclick = (e) => {
   const y = e.clientY - rect.top;
   const id = Date.now() + Math.random();
 
-  // Добавляем эффект **локально**
-  effects.push({
-    x,
-    y,
-    startTime: Date.now(),
-    duration: 800,
-    startRadius: 0,
-    maxRadius: 20
-  });
-  scheduleRedraw();
+  // Добавляем анимацию клика
+  ripples.push(new Ripple(x, y));
 
   if (currentTool === 'note') {
     const text = prompt('Введите текст заметки:');
@@ -253,15 +270,7 @@ canvas.onclick = (e) => {
 
 // Обработка получения анимации клика от других
 socket.on('click-effect', (data) => {
-  effects.push({
-    x: data.x,
-    y: data.y,
-    startTime: Date.now(),
-    duration: 800,
-    startRadius: 0,
-    maxRadius: 20
-  });
-  scheduleRedraw();
+  ripples.push(new Ripple(data.x, data.y));
 });
 
 // Обработка Drag & Drop объектов
@@ -310,22 +319,12 @@ canvas.onmousemove = (e) => {
 
 canvas.onmouseup = () => {
   if (isDragging && selectedObject) {
-    // Добавляем эффект **локально**
-    effects.push({
-      x: selectedObject.x,
-      y: selectedObject.y,
-      startTime: Date.now(),
-      duration: 800,
-      startRadius: 0,
-      maxRadius: 20
-    });
-    scheduleRedraw();
+    // Добавляем анимацию при отпускании
+    ripples.push(new Ripple(selectedObject.x, selectedObject.y));
 
-    // Отправляем анимацию при отпускании
     socket.emit('drag-end-effect', { x: selectedObject.x, y: selectedObject.y });
 
-    // Отправляем обновление с label
-    socket.emit('update-object', { id: selectedObject.id, x: selectedObject.x, y: selectedObject.y, label: selectedObject.label });
+    socket.emit('update-object', { id: selectedObject.id, x: selectedObject.x, y: selectedObject.y });
   }
   isDragging = false;
   selectedObject = null;
@@ -334,15 +333,7 @@ canvas.onmouseup = () => {
 
 // Обработка получения анимации drag-end от других
 socket.on('drag-end-effect', (data) => {
-  effects.push({
-    x: data.x,
-    y: data.y,
-    startTime: Date.now(),
-    duration: 800,
-    startRadius: 0,
-    maxRadius: 20
-  });
-  scheduleRedraw();
+  ripples.push(new Ripple(data.x, data.y));
 });
 
 canvas.onmouseleave = () => {
@@ -412,16 +403,8 @@ canvas.addEventListener('drop', (e) => {
   const y = e.clientY - rect.top;
   const id = Date.now() + Math.random();
 
-  // Добавляем эффект **локально**
-  effects.push({
-    x,
-    y,
-    startTime: Date.now(),
-    duration: 800,
-    startRadius: 0,
-    maxRadius: 20
-  });
-  scheduleRedraw();
+  // Добавляем анимацию drop
+  ripples.push(new Ripple(x, y));
 
   // Отправляем анимацию drop всем
   socket.emit('drop-effect', { x, y });
@@ -435,15 +418,7 @@ canvas.addEventListener('drop', (e) => {
 
 // Обработка получения анимации drop от других
 socket.on('drop-effect', (data) => {
-  effects.push({
-    x: data.x,
-    y: data.y,
-    startTime: Date.now(),
-    duration: 800,
-    startRadius: 0,
-    maxRadius: 20
-  });
-  scheduleRedraw();
+  ripples.push(new Ripple(data.x, data.y));
 });
 
 // Обработка смены карты
@@ -456,7 +431,7 @@ mapSelect.onchange = (e) => {
 
 // Обработка получения объектов для карты
 socket.on('map-objects', (data) => {
-  allObjects[data.map] = data.objects || []; // Убедимся, что массив
+  allObjects[data.map] = data.objects || [];
   if (data.map === currentMap) {
     objects = allObjects[data.map];
     loadBackground(currentMap);
@@ -475,7 +450,4 @@ socket.on('map-changed', (data) => {
     loadBackground(currentMap);
     scheduleRedraw();
   }
-
 });
-
-
