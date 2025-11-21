@@ -102,32 +102,36 @@ io.on('connection', (socket) => {
     socket.emit('available-maps', availableMaps);
   });
 
-  socket.on('join-room', ({ roomId, userName }) => {
-    socket.join(roomId);
-    if (!rooms[roomId]) {
-      rooms[roomId] = { maps: {}, users: {}, currentMap: 'Греция.jpeg' };
-      console.log(`Комната создана: ${roomId}`);
-    }
-    if (!rooms[roomId].maps[rooms[roomId].currentMap]) {
-      rooms[roomId].maps[rooms[roomId].currentMap] = { objects: [] };
-    }
+socket.on('join-room', ({ roomId, userName }) => {
+  socket.join(roomId);
 
-    rooms[roomId].users[socket.id] = { id: socket.id, name: userName || `User ${Object.keys(rooms[roomId].users).length + 1}` };
+  // === ИСПРАВЛЕНИЕ: Не пересоздаём комнату, если она уже есть ===
+  if (!rooms[roomId]) {
+    rooms[roomId] = { maps: {}, users: {}, currentMap: 'Греция.jpeg' };
+    console.log(`Комната создана: ${roomId}`);
+  }
 
-    socket.roomId = roomId;
-    socket.currentMap = rooms[roomId].currentMap;
+  // Убедимся, что в картах есть объекты
+  if (!rooms[roomId].maps[rooms[roomId].currentMap]) {
+    rooms[roomId].maps[rooms[roomId].currentMap] = { objects: [] };
+  }
 
-    console.log(`Пользователь ${socket.id} зашёл в комнату ${roomId}`);
+  rooms[roomId].users[socket.id] = { id: socket.id, name: userName || `User ${Object.keys(rooms[roomId].users).length + 1}` };
 
-    socket.to(roomId).emit('user-joined', rooms[roomId].users[socket.id]);
-    socket.emit('room-data', {
-      objects: rooms[roomId].maps[rooms[roomId].currentMap].objects,
-      currentMap: rooms[roomId].currentMap,
-      users: Object.values(rooms[roomId].users)
-    });
+  socket.roomId = roomId;
+  socket.currentMap = rooms[roomId].currentMap;
 
-    saveState(); // Сохраняем при входе
+  console.log(`Пользователь ${socket.id} зашёл в комнату ${roomId}`);
+
+  socket.to(roomId).emit('user-joined', rooms[roomId].users[socket.id]);
+  socket.emit('room-data', {
+    objects: rooms[roomId].maps[rooms[roomId].currentMap].objects,
+    currentMap: rooms[roomId].currentMap,
+    users: Object.values(rooms[roomId].users)
   });
+
+  saveState(); // Сохраняем при входе
+});
 
   socket.on('add-object', (data) => {
     const roomId = socket.roomId;
@@ -229,6 +233,7 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
 
 
 
