@@ -106,7 +106,8 @@ socket.on('join-room', ({ roomId, userName }) => {
   if (!rooms[roomId].maps[currentMap]?.objects?.length) {
     // Ищем карту с объектами
     for (const mapName in rooms[roomId].maps) {
-      if (rooms[roomId].maps[mapName].objects.length > 0) {
+      const map = rooms[roomId].maps[mapName];
+      if (map.objects && Array.isArray(map.objects) && map.objects.length > 0) {
         currentMap = mapName;
         rooms[roomId].currentMap = mapName; // Обновляем currentMap
         console.log(`Текущая карта изменена на: ${mapName}`);
@@ -142,6 +143,7 @@ socket.on('join-room', ({ roomId, userName }) => {
     console.error('Ошибка при сохранении состояния в Redis (join-room):', e);
   }
 });
+
 
   socket.on('add-object', (data) => {
     const roomId = socket.roomId;
@@ -270,5 +272,6 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
 
 
