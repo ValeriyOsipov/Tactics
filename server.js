@@ -93,14 +93,16 @@ io.on('connection', (socket) => {
     socket.emit('available-maps', availableMaps);
   });
 
-  socket.on('join-room', ({ roomId, userName }) => {
-    socket.join(roomId);
+socket.on('join-room', ({ roomId, userName }) => {
+  socket.join(roomId);
 
-    // === ИСПРАВЛЕНИЕ: Не пересоздаём комнату, если она уже есть ===
-    if (!rooms[roomId]) {
-      rooms[roomId] = { maps: {}, users: {}, currentMap: 'Греция.jpeg' };
-      console.log(`Комната создана: ${roomId}`);
-    }
+  if (!rooms[roomId]) {
+    rooms[roomId] = { maps: {}, users: {}, currentMap: 'Греция.jpeg' };
+    console.log(`Комната создана: ${roomId}`);
+  }
+
+  console.log(`Комната: ${roomId}, currentMap: ${rooms[roomId].currentMap}`);
+  console.log(`Объекты на карте:`, rooms[roomId].maps[rooms[roomId].currentMap]?.objects || []);
 
     // Убедимся, что в картах есть объекты
     if (!rooms[roomId].maps[rooms[roomId].currentMap]) {
@@ -257,3 +259,4 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
