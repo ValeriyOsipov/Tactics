@@ -101,9 +101,12 @@ socket.on('join-room', ({ roomId, userName }) => {
     console.log(`Комната создана: ${roomId}`);
   }
 
+  console.log(`Состояние комнаты до обновления currentMap:`, rooms[roomId]);
+
   // === ИСПРАВЛЕНИЕ: Если на currentMap нет объектов, ищи карту с объектами ===
   let currentMap = rooms[roomId].currentMap;
   if (!rooms[roomId].maps[currentMap]?.objects?.length) {
+    console.log(`currentMap "${currentMap}" пуста или не существует, ищем карту с объектами...`);
     // Ищем карту с объектами
     for (const mapName in rooms[roomId].maps) {
       const map = rooms[roomId].maps[mapName];
@@ -127,7 +130,7 @@ socket.on('join-room', ({ roomId, userName }) => {
   socket.currentMap = currentMap; // Обновляем currentMap у сокета
 
   console.log(`Пользователь ${socket.id} зашёл в комнату ${roomId}`);
-  console.log(`Объекты на карте:`, rooms[roomId].maps[currentMap].objects);
+  console.log(`Объекты на карте "${currentMap}":`, rooms[roomId].maps[currentMap].objects);
 
   socket.to(roomId).emit('user-joined', rooms[roomId].users[socket.id]);
   socket.emit('room-data', {
@@ -144,7 +147,6 @@ socket.on('join-room', ({ roomId, userName }) => {
     console.error('Ошибка при сохранении состояния в Redis (join-room):', e);
   }
 });
-
 
   socket.on('add-object', (data) => {
     const roomId = socket.roomId;
@@ -273,6 +275,7 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
 
 
 
