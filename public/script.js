@@ -42,13 +42,52 @@ class Ripple {
   draw(ctx) {
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(255, 0, 0, ${this.alpha})`; // Красный цвет
+    ctx.strokeStyle = `rgba(255, 0, 0, ${this.alpha})`;
     ctx.lineWidth = 1.5;
     ctx.stroke();
   }
 }
 
-function animateRipples() {
+// === ОБЪЕДИНЁННЫЙ requestAnimationFrame ===
+function animate() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Рисуем фон
+  if (bgLoaded) {
+    ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+  }
+
+  // Рисуем объекты
+  objects.forEach(obj => {
+    if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
+      const img = shipImages[obj.type][obj.color];
+      if (!img) {
+        console.error(`Изображение не найдено для ${obj.type}_${obj.color}`);
+        return;
+      }
+      if (!img.complete) {
+        console.warn(`Изображение ${obj.type}_${obj.color} ещё не загружено`);
+        return;
+      }
+      ctx.drawImage(img, obj.x - img.width / 2, obj.y - img.height / 2);
+
+      // Рисуем подпись под кораблём
+      if (obj.label) {
+        ctx.font = '12px Arial';
+        ctx.fillStyle = 'yellow';
+        ctx.textAlign = 'center';
+        ctx.fillText(obj.label, obj.x, obj.y + img.height / 2 + 15);
+      }
+    } else if (obj.type === 'note') {
+      ctx.font = '14px Arial';
+      ctx.fillStyle = 'rgba(255, 255, 200, 0.9)';
+      ctx.fillRect(obj.x - 30, obj.y - 20, 100, 30);
+      ctx.fillStyle = 'black';
+      ctx.fillText(obj.text, obj.x - 25, obj.y);
+    }
+  });
+
+  // Рисуем анимацию (волн)
   for (let i = ripples.length - 1; i >= 0; i--) {
     if (!ripples[i].update()) {
       ripples.splice(i, 1);
@@ -56,11 +95,12 @@ function animateRipples() {
       ripples[i].draw(ctx);
     }
   }
-  requestAnimationFrame(animateRipples);
+
+  requestAnimationFrame(animate);
 }
 
 // Запускаем анимацию один раз
-animateRipples();
+animate();
 
 // ... (все остальные части остаются без изменений)
 
@@ -109,7 +149,6 @@ function loadBackground(map) {
   bgImage.src = `maps/${map}`;
   bgImage.onload = () => {
     bgLoaded = true;
-    scheduleRedraw();
   };
   bgImage.onerror = () => {
     console.error(`Ошибка загрузки фона: maps/${map}`);
@@ -120,22 +159,7 @@ function loadBackground(map) {
 function resizeCanvas() {
   canvas.width = 600;
   canvas.height = 600;
-  scheduleRedraw();
 }
-window.onresize = resizeCanvas;
-
-// Функция для планирования redraw
-function scheduleRedraw() {
-  if (!redrawPending) {
-    redrawPending = true;
-    requestAnimationFrame(() => {
-      redraw();
-      redrawPending = false;
-    });
-  }
-}
-
-let redrawPending = false;
 
 joinBtn.onclick = () => {
   const roomId = roomIdInput.value.trim();
@@ -158,13 +182,11 @@ socket.on('room-data', (data) => {
   mapSelect.value = currentMap;
   loadBackground(currentMap);
   updateUsersList(data.users);
-  scheduleRedraw();
 });
 
 socket.on('object-added', (obj) => {
   objects.push(obj);
   allObjects[currentMap] = objects;
-  scheduleRedraw();
 });
 
 socket.on('object-updated', (data) => {
@@ -174,7 +196,6 @@ socket.on('object-updated', (data) => {
     obj.y = data.y;
     if (data.label !== undefined) obj.label = data.label;
     allObjects[currentMap] = objects;
-    scheduleRedraw();
   }
 });
 
@@ -200,51 +221,6 @@ function updateUsersList(users) {
   });
 }
 
-// Рендер всех объектов
-function redraw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  if (!currentMap) {
-    console.error('Карта не установлена');
-    return;
-  }
-
-  if (bgLoaded) {
-    ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
-  }
-
-  objects.forEach(obj => {
-    if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
-      const img = shipImages[obj.type][obj.color];
-      if (!img) {
-        console.error(`Изображение не найдено для ${obj.type}_${obj.color}`);
-        return;
-      }
-      if (!img.complete) {
-        console.warn(`Изображение ${obj.type}_${obj.color} ещё не загружено`);
-        return;
-      }
-      ctx.drawImage(img, obj.x - img.width / 2, obj.y - img.height / 2);
-
-      // Рисуем подпись под кораблём
-      if (obj.label) {
-        ctx.font = '12px Arial';
-        ctx.fillStyle = 'yellow';
-        ctx.textAlign = 'center';
-        ctx.fillText(obj.label, obj.x, obj.y + img.height / 2 + 15);
-      }
-    } else if (obj.type === 'note') {
-      ctx.font = '14px Arial';
-      ctx.fillStyle = 'rgba(255, 255, 200, 0.9)';
-      ctx.fillRect(obj.x - 30, obj.y - 20, 100, 30);
-      ctx.fillStyle = 'black';
-      ctx.fillText(obj.text, obj.x - 25, obj.y);
-    }
-  });
-
-  // Анимация рисуется отдельно через requestAnimationFrame
-}
-
 // Обработка кликов по canvas
 let currentTool = null;
 
@@ -263,7 +239,6 @@ canvas.onclick = (e) => {
     const obj = { id, type: 'note', x, y, text };
     objects.push(obj);
     allObjects[currentMap] = objects;
-    scheduleRedraw();
     socket.emit('add-object', obj);
   }
 };
@@ -313,8 +288,6 @@ canvas.onmousemove = (e) => {
 
   selectedObject.x = x + offsetX;
   selectedObject.y = y + offsetY;
-
-  scheduleRedraw();
 };
 
 canvas.onmouseup = () => {
@@ -366,7 +339,6 @@ canvas.ondblclick = (e) => {
       if (newLabel !== null) {
         obj.label = newLabel;
         allObjects[currentMap] = objects;
-        scheduleRedraw();
 
         // Отправляем обновление подписи
         socket.emit('update-object', { id: obj.id, x: obj.x, y: obj.y, label: obj.label });
@@ -412,7 +384,6 @@ canvas.addEventListener('drop', (e) => {
   const obj = { id, type, x, y, color, label: '' };
   objects.push(obj);
   allObjects[currentMap] = objects;
-  scheduleRedraw();
   socket.emit('add-object', obj);
 });
 
@@ -435,7 +406,6 @@ socket.on('map-objects', (data) => {
   if (data.map === currentMap) {
     objects = allObjects[data.map];
     loadBackground(currentMap);
-    scheduleRedraw();
   }
 });
 
@@ -448,6 +418,9 @@ socket.on('map-changed', (data) => {
   } else {
     objects = allObjects[data.map];
     loadBackground(currentMap);
-    scheduleRedraw();
   }
 });
+
+// Установка размера canvas при загрузке
+resizeCanvas();
+window.onresize = resizeCanvas;
