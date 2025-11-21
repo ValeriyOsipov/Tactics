@@ -62,15 +62,6 @@ async function loadState() {
   return {};
 }
 
-// === Функция для сохранения состояния в Redis ===
-async function saveState() {
-  try {
-    await redisClient.set('rooms', JSON.stringify(rooms));
-    console.log('Состояние комнат сохранено в Redis');
-  } catch (e) {
-    console.error('Ошибка при сохранении состояния в Redis:', e);
-  }
-}
 
 // === Загружаем состояние при запуске ===
 let rooms = {};
@@ -105,13 +96,11 @@ io.on('connection', (socket) => {
 socket.on('join-room', ({ roomId, userName }) => {
   socket.join(roomId);
 
-  // === ИСПРАВЛЕНИЕ: Не пересоздаём комнату, если она уже есть ===
   if (!rooms[roomId]) {
     rooms[roomId] = { maps: {}, users: {}, currentMap: 'Греция.jpeg' };
     console.log(`Комната создана: ${roomId}`);
   }
 
-  // Убедимся, что в картах есть объекты
   if (!rooms[roomId].maps[rooms[roomId].currentMap]) {
     rooms[roomId].maps[rooms[roomId].currentMap] = { objects: [] };
   }
@@ -130,7 +119,13 @@ socket.on('join-room', ({ roomId, userName }) => {
     users: Object.values(rooms[roomId].users)
   });
 
-  saveState(); // Сохраняем при входе
+  // === ИСПРАВЛЕНИЕ: Сохраним сразу, без задержки ===
+  try {
+    redisClient.set('rooms', JSON.stringify(rooms));
+    console.log('Состояние комнат сохранено в Redis (join-room)');
+  } catch (e) {
+    console.error('Ошибка при сохранении состояния в Redis (join-room):', e);
+  }
 });
 
   socket.on('add-object', (data) => {
@@ -139,7 +134,12 @@ socket.on('join-room', ({ roomId, userName }) => {
     if (roomId && rooms[roomId] && rooms[roomId].maps[map]) {
       rooms[roomId].maps[map].objects.push(data);
       socket.to(roomId).emit('object-added', data);
-      saveState(); // Сохраняем при добавлении
+try {
+  redisClient.set('rooms', JSON.stringify(rooms));
+  console.log('Состояние комнат сохранено в Redis (add-object)');
+} catch (e) {
+  console.error('Ошибка при сохранении состояния в Redis (add-object):', e);
+}
     }
   });
 
@@ -153,7 +153,12 @@ socket.on('join-room', ({ roomId, userName }) => {
         obj.y = data.y;
         if (data.label !== undefined) obj.label = data.label;
         socket.to(roomId).emit('object-updated', data);
-        saveState(); // Сохраняем при обновлении
+try {
+  redisClient.set('rooms', JSON.stringify(rooms));
+  console.log('Состояние комнат сохранено в Redis (add-object)');
+} catch (e) {
+  console.error('Ошибка при сохранении состояния в Redis (add-object):', e);
+}
       }
     }
   });
@@ -168,7 +173,12 @@ socket.on('join-room', ({ roomId, userName }) => {
       socket.currentMap = data.map;
       socket.emit('map-changed', data);
       socket.to(roomId).emit('map-changed', data);
-      saveState(); // Сохраняем при смене карты
+try {
+  redisClient.set('rooms', JSON.stringify(rooms));
+  console.log('Состояние комнат сохранено в Redis (change-map)');
+} catch (e) {
+  console.error('Ошибка при сохранении состояния в Redis (change-map):', e);
+}
     }
   });
 
@@ -215,8 +225,12 @@ socket.on('join-room', ({ roomId, userName }) => {
         delete rooms[roomId];
         console.log(`Комната ${roomId} удалена (пустая)`);
       }
-
-      saveState(); // Сохраняем при выходе
+try {
+  redisClient.set('rooms', JSON.stringify(rooms));
+  console.log('Состояние комнат сохранено в Redis (disconnect)');
+} catch (e) {
+  console.error('Ошибка при сохранении состояния в Redis (disconnect):', e);
+}
     }
   });
 });
@@ -229,10 +243,16 @@ server.listen(PORT, () => {
 // === Сохраняем состояние при завершении работы ===
 process.on('SIGINT', () => {
   console.log('Сохраняем состояние перед завершением...');
-  saveState();
+try {
+  redisClient.set('rooms', JSON.stringify(rooms));
+  console.log('Состояние комнат сохранено в Redis (disconnect)');
+} catch (e) {
+  console.error('Ошибка при сохранении состояния в Redis (disconnect):', e);
+}
   redisClient.quit();
   process.exit(0);
 });
+
 
 
 
