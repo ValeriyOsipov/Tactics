@@ -79,6 +79,8 @@ app.post('/admin/load-redis', express.json({ limit: '50mb' }), async (req, res) 
       }
     }
 
+    console.log('Новое состояние (после преобразования):', JSON.stringify(newState).substring(0, 100) + '...');
+
     // Обновляем и Redis, и память
     await redisClient.set('rooms', JSON.stringify(newState));
     rooms = newState; // Обновляем память
@@ -107,57 +109,70 @@ io.on('connection', (socket) => {
     socket.emit('available-maps', availableMaps);
   });
 
-socket.on('join-room', ({ roomId, userName }) => {
-  socket.join(roomId);
+  socket.on('join-room', async ({ roomId, userName }) => {
+    socket.join(roomId);
 
-  if (!rooms[roomId]) {
-    rooms[roomId] = { maps: {}, users: {}, currentMap: 'Греция.jpeg' };
-    console.log(`Комната создана: ${roomId}`);
-  }
+    // === ЧИТАЕМ rooms ИЗ REDIS ===
+    try {
+      const redisData = await redisClient.get('rooms');
+      if (redisData) {
+        rooms = JSON.parse(redisData);
+        console.log('rooms обновлён из Redis');
+      }
+    } catch (e) {
+      console.error('Ошибка при чтении rooms из Redis:', e);
+    }
 
-  // === ИСПРАВЛЕНИЕ: Если на currentMap нет объектов, ищи карту с объектами ===
-  let currentMap = rooms[roomId].currentMap;
-  if (!rooms[roomId].maps[currentMap]?.objects?.length) {
-    console.log(`currentMap "${currentMap}" пуста или не существует, ищем карту с объектами...`);
-    // Ищем карту с объектами
-    for (const mapName in rooms[roomId].maps) {
-      const map = rooms[roomId].maps[mapName];
-      if (map.objects && Array.isArray(map.objects) && map.objects.length > 0) {
-        currentMap = mapName;
-        rooms[roomId].currentMap = mapName; // Обновляем currentMap
-        console.log(`Текущая карта изменена на: ${mapName}`);
-        break;
+    // === УБЕДИМСЯ, ЧТО КОМНАТА ЕСТЬ ===
+    if (!rooms[roomId]) {
+      rooms[roomId] = { maps: {}, users: {}, currentMap: 'Греция.jpeg' };
+      console.log(`Комната создана: ${roomId}`);
+    }
+
+    // === ИСПРАВЛЕНИЕ: Если на currentMap нет объектов, ищи карту с объектами ===
+    let currentMap = rooms[roomId].currentMap;
+    if (!rooms[roomId].maps[currentMap]?.objects?.length) {
+      console.log(`currentMap "${currentMap}" пуста или не существует, ищем карту с объектами...`);
+      // Ищем карту с объектами
+      for (const mapName in rooms[roomId].maps) {
+        const map = rooms[roomId].maps[mapName];
+        if (map.objects && Array.isArray(map.objects) && map.objects.length > 0) {
+          currentMap = mapName;
+          rooms[roomId].currentMap = mapName; // Обновляем currentMap
+          console.log(`Текущая карта изменена на: ${mapName}`);
+          break;
+        }
       }
     }
-  }
 
-  // === ИСПРАВЛЕНИЕ: Убедимся, что карта существует ===
-  if (!rooms[roomId].maps[currentMap]) {
-    rooms[roomId].maps[currentMap] = { objects: [] };
-  }
+    // === ИСПРАВЛЕНИЕ: Убедимся, что карта существует ===
+    if (!rooms[roomId].maps[currentMap]) {
+      rooms[roomId].maps[currentMap] = { objects: [] };
+    }
 
-  rooms[roomId].users[socket.id] = { id: socket.id, name: userName || `User ${Object.keys(rooms[roomId].users).length + 1}` };
+    rooms[roomId].users[socket.id] = { id: socket.id, name: userName || `User ${Object.keys(rooms[roomId].users).length + 1}` };
 
-  socket.roomId = roomId;
-  socket.currentMap = currentMap; // Обновляем currentMap у сокета
+    socket.roomId = roomId;
+    socket.currentMap = currentMap; // Обновляем currentMap у сокета
 
-  console.log(`Пользователь ${socket.id} зашёл в комнату ${roomId}`);
+    console.log(`Пользователь ${socket.id} зашёл в комнату ${roomId}`);
+    console.log(`Объекты на карте "${currentMap}":`, rooms[roomId].maps[currentMap].objects);
 
-  socket.to(roomId).emit('user-joined', rooms[roomId].users[socket.id]);
-  socket.emit('room-data', {
-    objects: rooms[roomId].maps[currentMap].objects,
-    currentMap: currentMap,
-    users: Object.values(rooms[roomId].users)
+    socket.to(roomId).emit('user-joined', rooms[roomId].users[socket.id]);
+    socket.emit('room-data', {
+      objects: rooms[roomId].maps[currentMap].objects,
+      currentMap: currentMap,
+      users: Object.values(rooms[roomId].users)
+    });
+
+    // === Сохраняем сразу ===
+    try {
+      redisClient.set('rooms', JSON.stringify(rooms));
+      console.log('Состояние комнат сохранено в Redis (join-room)');
+    } catch (e) {
+      console.error('Ошибка при сохранении состояния в Redis (join-room):', e);
+    }
   });
-
-  // === Сохраняем сразу ===
-  try {
-    redisClient.set('rooms', JSON.stringify(rooms));
-    console.log('Состояние комнат сохранено в Redis (join-room)');
-  } catch (e) {
-    console.error('Ошибка при сохранении состояния в Redis (join-room):', e);
-  }
-});
 
   socket.on('add-object', (data) => {
     const roomId = socket.roomId;
@@ -257,13 +272,7 @@ socket.on('join-room', ({ roomId, userName }) => {
       socket.to(roomId).emit('user-left', socket.id);
       console.log(`Пользователь ${socket.id} покинул комнату ${roomId}`);
 
-      // === ИСПРАВЛЕНИЕ: Не удаляем комнату, если она пустая ===
-      // if (Object.keys(rooms[roomId].users).length === 0) {
-      //   delete rooms[roomId];
-      //   console.log(`Комната ${roomId} удалена (пустая)`);
-      // }
-
-      // Всегда сохраняем, даже если пользователь ушёл
+      // === Сохраняем сразу ===
       try {
         redisClient.set('rooms', JSON.stringify(rooms));
         console.log('Состояние комнат сохранено в Redis (disconnect)');
@@ -286,10 +295,3 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
-
-
-
-
-
-
-
