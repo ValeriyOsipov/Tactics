@@ -101,8 +101,7 @@ const availableMaps = [
   'Петля.png',
   'Путь воина.png',
   'Север.png',
-  'Северные воды.jpeg',
-  'Зона крушения Альфа.png'
+  'Северные воды.jpeg'
 ];
 
 io.on('connection', (socket) => {
@@ -177,7 +176,7 @@ io.on('connection', (socket) => {
 
   socket.on('add-object', (data) => {
     const roomId = socket.roomId;
-    const map = socket.currentMap;
+    const map = socket.currentMap; // === ВАЖНО: использовать текущую карту сокета ===
     if (roomId && rooms[roomId] && rooms[roomId].maps[map]) {
       rooms[roomId].maps[map].objects.push(data);
       socket.to(roomId).emit('object-added', data);
@@ -194,16 +193,18 @@ io.on('connection', (socket) => {
 
   socket.on('update-object', (data) => {
     const roomId = socket.roomId;
-    const map = socket.currentMap;
+    const map = socket.currentMap; // === ВАЖНО: использовать текущую карту сокета ===
     if (rooms[roomId] && rooms[roomId].maps[map]) {
       const obj = rooms[roomId].maps[map].objects.find(o => o.id === data.id);
       if (obj) {
         obj.x = data.x;
         obj.y = data.y;
         if (data.label !== undefined) obj.label = data.label;
+
+        // === ОТПРАВИТЬ ВСЕМ ===
         socket.to(roomId).emit('object-updated', data);
 
-        // === Сохраняем сразу ===
+        // === СОХРАНИТЬ В REDIS ===
         try {
           redisClient.set('rooms', JSON.stringify(rooms));
           console.log('Состояние комнат сохранено в Redis (update-object)');
@@ -221,7 +222,8 @@ io.on('connection', (socket) => {
         rooms[roomId].maps[data.map] = { objects: [] };
       }
       rooms[roomId].currentMap = data.map;
-      socket.currentMap = data.map;
+      socket.currentMap = data.map; // === ВАЖНО: обновить у сокета ===
+
       socket.emit('map-changed', data);
       socket.to(roomId).emit('map-changed', data);
 
@@ -259,13 +261,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('animate-move', (data) => {
-    const roomId = socket.roomId;
-    if (roomId) {
-      socket.to(roomId).emit('animate-move', data);
-    }
-  });
-  
   socket.on('drop-effect', (data) => {
     const roomId = socket.roomId;
     if (roomId) {
@@ -273,27 +268,22 @@ io.on('connection', (socket) => {
     }
   });
 
-socket.on('disconnect', () => {
-  const roomId = socket.roomId;
-  if (roomId && rooms[roomId]) {
-    delete rooms[roomId].users[socket.id];
-    socket.to(roomId).emit('user-left', socket.id);
-    console.log(`Пользователь ${socket.id} покинул комнату ${roomId}`);
+  socket.on('disconnect', () => {
+    const roomId = socket.roomId;
+    if (roomId && rooms[roomId]) {
+      delete rooms[roomId].users[socket.id];
+      socket.to(roomId).emit('user-left', socket.id);
+      console.log(`Пользователь ${socket.id} покинул комнату ${roomId}`);
 
-    // === Не удаляем комнату ===
-    // if (Object.keys(rooms[roomId].users).length === 0) {
-    //   delete rooms[roomId];
-    // }
-
-    // === Сохраняем сразу ===
-    try {
-      redisClient.set('rooms', JSON.stringify(rooms));
-      console.log('Состояние комнат сохранено в Redis (disconnect)');
-    } catch (e) {
-      console.error('Ошибка при сохранении состояния в Redis (disconnect):', e);
+      // === Сохраняем сразу ===
+      try {
+        redisClient.set('rooms', JSON.stringify(rooms));
+        console.log('Состояние комнат сохранено в Redis (disconnect)');
+      } catch (e) {
+        console.error('Ошибка при сохранении состояния в Redis (disconnect):', e);
+      }
     }
-  }
-});
+  });
 });
 
 const PORT = process.env.PORT || 3000;
@@ -308,6 +298,3 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
-
-
-
