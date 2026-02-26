@@ -52,14 +52,7 @@ class Ripple {
   }
 }
 
-// === АНИМАЦИЯ ПЕРЕМЕЩЕНИЯ ОБЪЕКТОВ ===
-const movingObjects = {}; // id -> { start, end, startTime, duration }
-
-function interpolate(start, end, progress) {
-  return start + (end - start) * progress;
-}
-
-// === ОБНОВЛЁННАЯ ОТРИСОВКА ===
+// === ОБЪЕДИНЁННЫЙ requestAnimationFrame ===
 function animate() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -70,24 +63,6 @@ function animate() {
 
   // Рисуем объекты
   objects.forEach(obj => {
-    // Проверяем, есть ли анимация для этого объекта
-    const moving = movingObjects[obj.id];
-    let renderX = obj.x;
-    let renderY = obj.y;
-
-    if (moving) {
-      const elapsed = Date.now() - moving.startTime;
-      const progress = Math.min(elapsed / moving.duration, 1);
-
-      renderX = interpolate(moving.from.x, moving.to.x, progress);
-      renderY = interpolate(moving.from.y, moving.to.y, progress);
-
-      // Если анимация закончена, удаляем из movingObjects
-      if (progress >= 1) {
-        delete movingObjects[obj.id];
-      }
-    }
-
     if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
       const img = shipImages[obj.type][obj.color];
       if (!img) {
@@ -98,21 +73,21 @@ function animate() {
         console.warn(`Изображение ${obj.type}_${obj.color} ещё не загружено`);
         return;
       }
-      ctx.drawImage(img, renderX - img.width / 2, renderY - img.height / 2);
+      ctx.drawImage(img, obj.x - img.width / 2, obj.y - img.height / 2);
 
       // Рисуем подпись под кораблём
       if (obj.label) {
         ctx.font = '12px Arial';
         ctx.fillStyle = 'yellow';
         ctx.textAlign = 'center';
-        ctx.fillText(obj.label, renderX, renderY + img.height / 2 + 15);
+        ctx.fillText(obj.label, obj.x, obj.y + img.height / 2 + 15);
       }
     } else if (obj.type === 'note') {
       ctx.font = '14px Arial';
       ctx.fillStyle = 'rgba(255, 255, 200, 0.9)';
-      ctx.fillRect(renderX - 30, renderY - 20, 100, 30);
+      ctx.fillRect(obj.x - 30, obj.y - 20, 100, 30);
       ctx.fillStyle = 'black';
-      ctx.fillText(obj.text, renderX - 25, renderY);
+      ctx.fillText(obj.text, obj.x - 25, obj.y);
     }
   });
 
@@ -212,25 +187,6 @@ socket.on('room-data', (data) => {
   mapSelect.value = currentMap;
   loadBackground(currentMap);
   updateUsersList(data.users);
-});
-
-// === ОБНОВЛЕНИЕ ОБЪЕКТА С АНИМАЦИЕЙ ===
-socket.on('animate-move', (data) => {
-  const obj = objects.find(o => o.id === data.id);
-  if (obj) {
-    // Обновляем координаты объекта
-    obj.x = data.to.x;
-    obj.y = data.to.y;
-    allObjects[currentMap] = objects;
-
-    // Запускаем анимацию
-    movingObjects[data.id] = {
-      from: data.from,
-      to: data.to,
-      startTime: Date.now(),
-      duration: data.duration || 300 // 300 мс — можно настроить
-    };
-  }
 });
 
 socket.on('object-added', (obj) => {
@@ -345,19 +301,13 @@ canvas.onmousemove = (e) => {
 
 canvas.onmouseup = () => {
   if (isDragging && selectedObject) {
-    // === Добавляем анимацию при отпускании ===
+    // === Добавляем анимацию локально ===
     ripples.push(new Ripple(selectedObject.x, selectedObject.y));
 
-    // === Отправляем анимацию перемещения ===
-    socket.emit('animate-move', {
-      id: selectedObject.id,
-      from: { x: selectedObject.x - offsetX, y: selectedObject.y - offsetY }, // старые координаты
-      to: { x: selectedObject.x, y: selectedObject.y }, // новые координаты
-      duration: 300 // 300 мс
-    });
-
-    // === Отправляем анимацию drag-end всем другим ===
+    // === Отправляем анимацию всем другим ===
     socket.emit('drag-end-effect', { x: selectedObject.x, y: selectedObject.y });
+
+    socket.emit('update-object', { id: selectedObject.id, x: selectedObject.x, y: selectedObject.y });
   }
   isDragging = false;
   selectedObject = null;
@@ -493,6 +443,7 @@ socket.on('reconnect', (attemptNumber) => {
 
 socket.on('disconnect', (reason) => {
   console.log('Соединение потеряно:', reason);
+  // Можно показать уведомление пользователю
 });
 
 // Установка размера canvas при загрузке
