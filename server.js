@@ -266,22 +266,27 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('disconnect', () => {
-    const roomId = socket.roomId;
-    if (roomId && rooms[roomId]) {
-      delete rooms[roomId].users[socket.id];
-      socket.to(roomId).emit('user-left', socket.id);
-      console.log(`Пользователь ${socket.id} покинул комнату ${roomId}`);
+socket.on('disconnect', () => {
+  const roomId = socket.roomId;
+  if (roomId && rooms[roomId]) {
+    delete rooms[roomId].users[socket.id];
+    socket.to(roomId).emit('user-left', socket.id);
+    console.log(`Пользователь ${socket.id} покинул комнату ${roomId}`);
 
-      // === Сохраняем сразу ===
-      try {
-        redisClient.set('rooms', JSON.stringify(rooms));
-        console.log('Состояние комнат сохранено в Redis (disconnect)');
-      } catch (e) {
-        console.error('Ошибка при сохранении состояния в Redis (disconnect):', e);
-      }
+    // === Не удаляем комнату ===
+    // if (Object.keys(rooms[roomId].users).length === 0) {
+    //   delete rooms[roomId];
+    // }
+
+    // === Сохраняем сразу ===
+    try {
+      redisClient.set('rooms', JSON.stringify(rooms));
+      console.log('Состояние комнат сохранено в Redis (disconnect)');
+    } catch (e) {
+      console.error('Ошибка при сохранении состояния в Redis (disconnect):', e);
     }
-  });
+  }
+});
 });
 
 const PORT = process.env.PORT || 3000;
@@ -296,4 +301,5 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
 
