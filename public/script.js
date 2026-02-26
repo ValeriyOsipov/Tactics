@@ -19,6 +19,10 @@ let selectedObject = null;
 let offsetX, offsetY;
 let isDragging = false;
 
+// === ПЕРЕМЕННЫЕ ДЛЯ ХРАНЕНИЯ ИНФОРМАЦИИ О КОМНАТЕ ===
+let currentRoomId = null;
+let currentUserName = null;
+
 // === НОВАЯ АНИМАЦИЯ ===
 const ripples = [];
 
@@ -163,6 +167,9 @@ joinBtn.onclick = () => {
   const roomId = roomIdInput.value.trim();
   const userName = userNameInput.value.trim() || 'User';
   if (!roomId) return;
+
+  currentRoomId = roomId;
+  currentUserName = userName;
 
   socket.emit('join-room', { roomId, userName });
   roomInput.style.display = 'none';
@@ -426,6 +433,28 @@ socket.on('map-changed', (data) => {
   }
 });
 
+// === ОБРАБОТКА RECONNECT / DISCONNECT ===
+socket.on('reconnect', (attemptNumber) => {
+  console.log('Соединение восстановлено, попытка:', attemptNumber);
+  if (currentRoomId && currentUserName) {
+    socket.emit('join-room', { roomId: currentRoomId, userName: currentUserName });
+  }
+});
+
+socket.on('disconnect', (reason) => {
+  console.log('Соединение потеряно:', reason);
+  // Можно показать уведомление пользователю
+});
+
 // Установка размера canvas при загрузке
 resizeCanvas();
 window.onresize = resizeCanvas;
+
+// === ФУНКЦИЯ ДЛЯ ОТЛАДКИ ===
+window.dumpAllObjects = () => {
+  console.log('=== Состояние allObjects ===');
+  console.log(allObjects);
+  console.log('Текущая карта:', currentMap);
+  console.log('Объекты на текущей карте:', objects);
+  console.log('=====================================');
+};
