@@ -259,6 +259,13 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('animate-move', (data) => {
+    const roomId = socket.roomId;
+    if (roomId) {
+      socket.to(roomId).emit('animate-move', data);
+    }
+  });
+  
   socket.on('drop-effect', (data) => {
     const roomId = socket.roomId;
     if (roomId) {
@@ -301,5 +308,6 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
 
 
