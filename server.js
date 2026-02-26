@@ -101,7 +101,8 @@ const availableMaps = [
   'Петля.png',
   'Путь воина.png',
   'Север.png',
-  'Северные воды.jpeg'
+  'Северные воды.jpeg',
+  'Зона крушения Альфа.png'
 ];
 
 io.on('connection', (socket) => {
@@ -298,3 +299,4 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
