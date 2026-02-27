@@ -204,6 +204,15 @@ socket.on('object-updated', (data) => {
   }
 });
 
+// === УДАЛЕНИЕ ОБЪЕКТА ===
+socket.on('object-removed', (data) => {
+  const index = objects.findIndex(o => o.id === data.id);
+  if (index !== -1) {
+    objects.splice(index, 1);
+    allObjects[currentMap] = objects;
+  }
+});
+
 socket.on('user-joined', (user) => {
   const li = document.createElement('li');
   li.id = `user-${user.id}`;
@@ -257,33 +266,69 @@ socket.on('click-effect', (data) => {
   ripples.push(new Ripple(data.x, data.y));
 });
 
-// Обработка Drag & Drop объектов
+// === ОБРАБОТКА ПКМ (удаление) ===
+canvas.oncontextmenu = (e) => {
+  e.preventDefault(); // Отключаем контекстное меню
+};
+
 canvas.onmousedown = (e) => {
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
+  if (e.button === 2) { // === ПКМ ===
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
-  for (let i = objects.length - 1; i >= 0; i--) {
-    const obj = objects[i];
-    let inBounds = false;
+    for (let i = objects.length - 1; i >= 0; i--) {
+      const obj = objects[i];
+      let inBounds = false;
 
-    if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
-      const img = shipImages[obj.type][obj.color];
-      if (img && img.complete) {
-        inBounds = x >= obj.x - img.width / 2 && x <= obj.x + img.width / 2 &&
-                   y >= obj.y - img.height / 2 && y <= obj.y + img.height / 2;
+      if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
+        const img = shipImages[obj.type][obj.color];
+        if (img && img.complete) {
+          inBounds = x >= obj.x - img.width / 2 && x <= obj.x + img.width / 2 &&
+                     y >= obj.y - img.height / 2 && y <= obj.y + img.height / 2;
+        }
+      } else if (obj.type === 'note') {
+        inBounds = x >= obj.x - 30 && x <= obj.x + 70 && y >= obj.y - 20 && y <= obj.y + 10;
       }
-    } else if (obj.type === 'note') {
-      inBounds = x >= obj.x - 30 && x <= obj.x + 70 && y >= obj.y - 20 && y <= obj.y + 10;
-    }
 
-    if (inBounds) {
-      selectedObject = obj;
-      offsetX = obj.x - x;
-      offsetY = obj.y - y;
-      isDragging = true;
-      canvas.style.cursor = 'grabbing';
-      break;
+      if (inBounds) {
+        if (confirm('Удалить маркер?')) {
+          socket.emit('remove-object', { id: obj.id });
+          // Удаляем локально
+          objects.splice(i, 1);
+          allObjects[currentMap] = objects;
+        }
+        return;
+      }
+    }
+  } else {
+    // === ЛКМ (ранее) ===
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    for (let i = objects.length - 1; i >= 0; i--) {
+      const obj = objects[i];
+      let inBounds = false;
+
+      if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
+        const img = shipImages[obj.type][obj.color];
+        if (img && img.complete) {
+          inBounds = x >= obj.x - img.width / 2 && x <= obj.x + img.width / 2 &&
+                     y >= obj.y - img.height / 2 && y <= obj.y + img.height / 2;
+        }
+      } else if (obj.type === 'note') {
+        inBounds = x >= obj.x - 30 && x <= obj.x + 70 && y >= obj.y - 20 && y <= obj.y + 10;
+      }
+
+      if (inBounds) {
+        selectedObject = obj;
+        offsetX = obj.x - x;
+        offsetY = obj.y - y;
+        isDragging = true;
+        canvas.style.cursor = 'grabbing';
+        break;
+      }
     }
   }
 };
@@ -301,10 +346,9 @@ canvas.onmousemove = (e) => {
 
 canvas.onmouseup = () => {
   if (isDragging && selectedObject) {
-    // === Добавляем анимацию локально ===
+    // === Добавляем анимацию при отпускании ===
     ripples.push(new Ripple(selectedObject.x, selectedObject.y));
 
-    // === Отправляем анимацию всем другим ===
     socket.emit('drag-end-effect', { x: selectedObject.x, y: selectedObject.y });
 
     socket.emit('update-object', { id: selectedObject.id, x: selectedObject.x, y: selectedObject.y });
@@ -443,7 +487,6 @@ socket.on('reconnect', (attemptNumber) => {
 
 socket.on('disconnect', (reason) => {
   console.log('Соединение потеряно:', reason);
-  // Можно показать уведомление пользователю
 });
 
 // Установка размера canvas при загрузке
