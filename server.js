@@ -285,6 +285,29 @@ io.on('connection', (socket) => {
       }
     }
   });
+
+  socket.on('remove-object', (data) => {
+  const roomId = socket.roomId;
+  const map = socket.currentMap;
+  if (rooms[roomId] && rooms[roomId].maps[map]) {
+    const index = rooms[roomId].maps[map].objects.findIndex(o => o.id === data.id);
+    if (index !== -1) {
+      rooms[roomId].maps[map].objects.splice(index, 1);
+
+      // === Отправить всем ===
+      socket.to(roomId).emit('object-removed', { id: data.id });
+
+      // === Сохранить в Redis ===
+      try {
+        redisClient.set('rooms', JSON.stringify(rooms));
+        console.log('Объект удалён и состояние сохранено в Redis');
+      } catch (e) {
+        console.error('Ошибка при сохранении в Redis:', e);
+      }
+    }
+  }
+});
+  
 });
 
 const PORT = process.env.PORT || 3000;
@@ -299,4 +322,5 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
 
