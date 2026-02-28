@@ -493,6 +493,14 @@ socket.on('disconnect', (reason) => {
 resizeCanvas();
 window.onresize = resizeCanvas;
 
+// === Keep-alive для Render ===
+setInterval(() => {
+  fetch('/ping')
+    .then(response => response.text())
+    .then(data => console.log('Keep-alive ping:', data))
+    .catch(err => console.error('Keep-alive failed:', err));
+}, 10 * 60 * 1000);
+
 // === ФУНКЦИЯ ДЛЯ ОТЛАДКИ ===
 window.dumpAllObjects = () => {
   console.log('=== Состояние allObjects ===');
@@ -501,3 +509,4 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
