@@ -549,3 +549,44 @@ window.dumpAllObjects = () => {
   console.log('=====================================');
 };
 
+// === ГЕНЕРАЦИЯ ТАБЛИЦЫ СПРАВА ===
+function generateRadiusTable() {
+  const table = document.getElementById('radius-table');
+  table.innerHTML = '';
+
+  // Заголовки
+  const headerRow = document.createElement('tr');
+  const th1 = document.createElement('th');
+  th1.textContent = 'Корабль';
+  const th2 = document.createElement('th');
+  th2.textContent = 'Радиус (км)';
+  headerRow.appendChild(th1);
+  headerRow.appendChild(th2);
+  table.appendChild(headerRow);
+
+  // Данные
+  for (const name in shipRadii) {
+    const row = document.createElement('tr');
+    const td1 = document.createElement('td');
+    td1.textContent = name;
+    const td2 = document.createElement('td');
+    td2.textContent = shipRadii[name];
+    row.appendChild(td1);
+    row.appendChild(td2);
+    table.appendChild(row);
+  }
+}
+
+// Вызов при загрузке
+generateRadiusTable();
+
+// === ФУНКЦИЯ ДЛЯ ОТЛАДКИ ===
+window.dumpAllObjects = () => {
+  console.log('=== Состояние allObjects ===');
+  console.log(allObjects);
+  console.log('Текущая карта:', currentMap);
+  console.log('Объекты на текущей карте:', objects);
+  console.log('=====================================');
+};
+
+
