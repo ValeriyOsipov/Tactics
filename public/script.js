@@ -23,6 +23,41 @@ let isDragging = false;
 let currentRoomId = null;
 let currentUserName = null;
 
+// === СПРАВОЧНИК КОРАБЛЕЙ С РАДИУСАМИ (в км) ===
+const shipRadii = {
+  'Des Moines': 10,
+  'Salem': 8.5,
+  'Worcester': 9,
+  'Puerto Rico': 10,
+  'Невский': 12,
+  'Москва': 12,
+  'Сталинград': 12,
+  'Петропавловск': 12,
+  'Minotaur': 10,
+  'Plymouth': 9,
+  'Tordenskjold': 10,
+  'Changzheng': 12,
+  'Huangdi': 12,
+  'Yueyang': 7.5,
+  'Ragnar': 7.5,
+  'Gdansk': 9,
+  'Smaland': 7.5,
+  'Brisbane': 10,
+  'San Martin': 9
+};
+
+// === РАЗМЕР КАРТ (в км) ===
+const mapSizes = {
+  'Греция.jpeg': 42,
+  'Ледяные острова.png': 42,
+  'Огненная земля.png': 48,
+  'Петля.png': 48,
+  'Путь воина.png': 48,
+  'Север.png': 48,
+  'Северные воды.jpeg': 42,
+  'Зона крушения Альфа.png': 42
+};
+
 // === НОВАЯ АНИМАЦИЯ ===
 const ripples = [];
 
@@ -74,6 +109,18 @@ function animate() {
         return;
       }
       ctx.drawImage(img, obj.x - img.width / 2, obj.y - img.height / 2);
+
+      // === РИСУЕМ ОКРУЖНОСТЬ, ЕСЛИ ПОДПИСЬ СОВПАДАЕТ ===
+      if (obj.label && shipRadii[obj.label]) {
+        const mapSizeKm = mapSizes[currentMap] || 42; // по умолчанию 42
+        const radiusPx = (shipRadii[obj.label] / mapSizeKm) * canvas.width; // 900px = размер карты
+
+        ctx.beginPath();
+        ctx.arc(obj.x, obj.y, radiusPx, 0, Math.PI * 2);
+        ctx.strokeStyle = 'yellow';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
 
       // Рисуем подпись под кораблём
       if (obj.label) {
@@ -493,14 +540,6 @@ socket.on('disconnect', (reason) => {
 resizeCanvas();
 window.onresize = resizeCanvas;
 
-// === Keep-alive для Render ===
-setInterval(() => {
-  fetch('/ping')
-    .then(response => response.text())
-    .then(data => console.log('Keep-alive ping:', data))
-    .catch(err => console.error('Keep-alive failed:', err));
-}, 10 * 60 * 1000);
-
 // === ФУНКЦИЯ ДЛЯ ОТЛАДКИ ===
 window.dumpAllObjects = () => {
   console.log('=== Состояние allObjects ===');
@@ -509,4 +548,3 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
-
