@@ -540,12 +540,12 @@ socket.on('disconnect', (reason) => {
 resizeCanvas();
 window.onresize = resizeCanvas;
 
-// === СОЗДАНИЕ ТАБЛИЦЫ СПРАВА ===
+// === СОЗДАНИЕ ТАБЛИЦЫ СПРАВА (не перекрывает панель) ===
 function createRadiusInfoTable() {
   // Создаём контейнер для таблицы
   const tableDiv = document.createElement('div');
   tableDiv.id = 'radius-info';
-  tableDiv.style.position = 'absolute';
+  tableDiv.style.position = 'fixed';       // Используем fixed, чтобы не ломать layout
   tableDiv.style.top = '10px';
   tableDiv.style.right = '10px';
   tableDiv.style.background = 'rgba(0, 0, 0, 0.7)';
@@ -553,13 +553,15 @@ function createRadiusInfoTable() {
   tableDiv.style.padding = '10px';
   tableDiv.style.borderRadius = '5px';
   tableDiv.style.fontSize = '12px';
-  tableDiv.style.width = '200px';
+  tableDiv.style.width = '220px';
   tableDiv.style.zIndex = '10';
   tableDiv.style.fontFamily = 'Arial, sans-serif';
+  tableDiv.style.maxHeight = '80vh';       // Ограничиваем высоту
+  tableDiv.style.overflowY = 'auto';       // Добавляем скролл, если много строк
 
   // Заголовок
   const title = document.createElement('h4');
-  title.textContent = 'Радиусы кораблей (км)';
+  title.textContent = 'Дальность РЛС (км)';
   title.style.margin = '0 0 10px 0';
   title.style.color = 'yellow';
   title.style.fontSize = '13px';
@@ -606,10 +608,8 @@ function createRadiusInfoTable() {
 
   tableDiv.appendChild(table);
 
-  // Добавляем в canvas-container
-  const canvasWrapper = document.querySelector('#canvas-container');
-  canvasWrapper.style.position = 'relative'; // Убедимся, что родитель позиционирован
-  canvasWrapper.appendChild(tableDiv);
+  // Добавляем в body, чтобы не мешать layout
+  document.body.appendChild(tableDiv);
 }
 
 // Вызов при загрузке
@@ -623,6 +623,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
