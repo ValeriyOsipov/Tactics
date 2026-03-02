@@ -545,7 +545,7 @@ function addRadiusInfoTable() {
   // Ждём, пока canvas появится в DOM
   const canvas = document.getElementById('canvas');
   if (!canvas) {
-    не найден!');
+    'не найден!');
     return;
   }
 
@@ -631,6 +631,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
