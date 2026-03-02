@@ -561,7 +561,7 @@ function addRadiusInfoTable() {
   tableDiv.style.position = 'absolute';
   tableDiv.style.top = '50%';
   tableDiv.style.transform = 'translateY(-50%)';
-  tableDiv.style.left = `${canvas.offsetWidth + 50}px`; // 50px от правого края canvas
+  tableDiv.style.left = 'calc(50% + 350px)'; // 50px от правого края canvas
   tableDiv.style.width = '220px';
   tableDiv.style.background = 'rgba(0, 0, 0, 0.7)';
   tableDiv.style.color = 'white';
@@ -636,6 +636,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
