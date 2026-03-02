@@ -10,7 +10,6 @@ const io = socketIo(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// === Подключение к Redis ===
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 const redisClient = createClient({ url: redisUrl });
 
@@ -20,7 +19,6 @@ redisClient.on('error', (err) => {
 
 redisClient.connect();
 
-// === Функция для загрузки состояния из Redis ===
 async function loadState() {
   try {
     const data = await redisClient.get('rooms');
@@ -33,7 +31,6 @@ async function loadState() {
   return {};
 }
 
-// === Загружаем состояние при запуске ===
 let rooms = {};
 
 redisClient.get('rooms').then(data => {
@@ -47,8 +44,7 @@ redisClient.get('rooms').then(data => {
   console.error('Ошибка при загрузке состояния:', err);
 });
 
-// === НЕБЕЗОПАСНЫЕ ЭНДПОИНТЫ ДЛЯ ОТЛАДКИ ===
-// ВНИМАНИЕ: Не используй в продакшене без аутентификации!
+// === ЭНДПОИНТЫ ДЛЯ ОТЛАДКИ ===
 
 app.get('/admin/dump-redis', async (req, res) => {
   try {
@@ -64,14 +60,12 @@ app.post('/admin/load-redis', express.json({ limit: '50mb' }), async (req, res) 
   try {
     let newState = req.body;
 
-    // === ИСПРАВЛЕНИЕ: Преобразуем старый формат в новый ===
     for (const roomId in newState) {
       const room = newState[roomId];
       if (room.maps) {
         for (const mapName in room.maps) {
           const map = room.maps[mapName];
           if (Array.isArray(map)) {
-            // Это старый формат: maps[mapName] = [...]
             room.maps[mapName] = { objects: map };
             console.log(`Карта "${mapName}" в комнате "${roomId}" преобразована в новый формат`);
           }
@@ -81,9 +75,8 @@ app.post('/admin/load-redis', express.json({ limit: '50mb' }), async (req, res) 
 
     console.log('Новое состояние (после преобразования):', JSON.stringify(newState).substring(0, 100) + '...');
 
-    // Обновляем и Redis, и память
     await redisClient.set('rooms', JSON.stringify(newState));
-    rooms = newState; // Обновляем память
+    rooms = newState;
 
     console.log('Состояние успешно сохранено в Redis и обновлено в памяти');
     res.json({ success: true });
@@ -93,7 +86,6 @@ app.post('/admin/load-redis', express.json({ limit: '50mb' }), async (req, res) 
   }
 });
 
-// Список карт
 const availableMaps = [
   'Греция.jpeg',
   'Ледяные острова.png',
@@ -113,7 +105,6 @@ io.on('connection', (socket) => {
   socket.on('join-room', async ({ roomId, userName }) => {
     socket.join(roomId);
 
-    // === ЧИТАЕМ rooms ИЗ REDIS ===
     try {
       const redisData = await redisClient.get('rooms');
       if (redisData) {
@@ -124,29 +115,25 @@ io.on('connection', (socket) => {
       console.error('Ошибка при чтении rooms из Redis:', e);
     }
 
-    // === УБЕДИМСЯ, ЧТО КОМНАТА ЕСТЬ ===
     if (!rooms[roomId]) {
       rooms[roomId] = { maps: {}, users: {}, currentMap: 'Греция.jpeg' };
       console.log(`Комната создана: ${roomId}`);
     }
 
-    // === ИСПРАВЛЕНИЕ: Если на currentMap нет объектов, ищи карту с объектами ===
     let currentMap = rooms[roomId].currentMap;
     if (!rooms[roomId].maps[currentMap]?.objects?.length) {
       console.log(`currentMap "${currentMap}" пуста или не существует, ищем карту с объектами...`);
-      // Ищем карту с объектами
       for (const mapName in rooms[roomId].maps) {
         const map = rooms[roomId].maps[mapName];
         if (map.objects && Array.isArray(map.objects) && map.objects.length > 0) {
           currentMap = mapName;
-          rooms[roomId].currentMap = mapName; // Обновляем currentMap
+          rooms[roomId].currentMap = mapName;
           console.log(`Текущая карта изменена на: ${mapName}`);
           break;
         }
       }
     }
 
-    // === ИСПРАВЛЕНИЕ: Убедимся, что карта существует ===
     if (!rooms[roomId].maps[currentMap]) {
       rooms[roomId].maps[currentMap] = { objects: [] };
     }
@@ -154,10 +141,9 @@ io.on('connection', (socket) => {
     rooms[roomId].users[socket.id] = { id: socket.id, name: userName || `User ${Object.keys(rooms[roomId].users).length + 1}` };
 
     socket.roomId = roomId;
-    socket.currentMap = currentMap; // Обновляем currentMap у сокета
+    socket.currentMap = currentMap;
 
-    console.log(`Пользователь ${socket.id} зашёл в комнату ${roomId}`);
-    console.log(`Объекты на карте "${currentMap}":`, rooms[roomId].maps[currentMap].objects);
+    console.log(`Пользователь ${socket.id} (${name}) зашёл в комнату ${roomId}`);
 
     socket.to(roomId).emit('user-joined', rooms[roomId].users[socket.id]);
     socket.emit('room-data', {
@@ -166,7 +152,6 @@ io.on('connection', (socket) => {
       users: Object.values(rooms[roomId].users)
     });
 
-    // === Сохраняем сразу ===
     try {
       redisClient.set('rooms', JSON.stringify(rooms));
       console.log('Состояние комнат сохранено в Redis (join-room)');
@@ -177,12 +162,11 @@ io.on('connection', (socket) => {
 
   socket.on('add-object', (data) => {
     const roomId = socket.roomId;
-    const map = socket.currentMap; // === ВАЖНО: использовать текущую карту сокета ===
+    const map = socket.currentMap;
     if (roomId && rooms[roomId] && rooms[roomId].maps[map]) {
       rooms[roomId].maps[map].objects.push(data);
       socket.to(roomId).emit('object-added', data);
 
-      // === Сохраняем сразу ===
       try {
         redisClient.set('rooms', JSON.stringify(rooms));
         console.log('Состояние комнат сохранено в Redis (add-object)');
@@ -194,7 +178,7 @@ io.on('connection', (socket) => {
 
   socket.on('update-object', (data) => {
     const roomId = socket.roomId;
-    const map = socket.currentMap; // === ВАЖНО: использовать текущую карту сокета ===
+    const map = socket.currentMap;
     if (rooms[roomId] && rooms[roomId].maps[map]) {
       const obj = rooms[roomId].maps[map].objects.find(o => o.id === data.id);
       if (obj) {
@@ -202,10 +186,8 @@ io.on('connection', (socket) => {
         obj.y = data.y;
         if (data.label !== undefined) obj.label = data.label;
 
-        // === ОТПРАВИТЬ ВСЕМ ===
         socket.to(roomId).emit('object-updated', data);
 
-        // === СОХРАНИТЬ В REDIS ===
         try {
           redisClient.set('rooms', JSON.stringify(rooms));
           console.log('Состояние комнат сохранено в Redis (update-object)');
@@ -223,12 +205,11 @@ io.on('connection', (socket) => {
         rooms[roomId].maps[data.map] = { objects: [] };
       }
       rooms[roomId].currentMap = data.map;
-      socket.currentMap = data.map; // === ВАЖНО: обновить у сокета ===
+      socket.currentMap = data.map;
 
       socket.emit('map-changed', data);
       socket.to(roomId).emit('map-changed', data);
 
-      // === Сохраняем сразу ===
       try {
         redisClient.set('rooms', JSON.stringify(rooms));
         console.log('Состояние комнат сохранено в Redis (change-map)');
@@ -276,7 +257,6 @@ io.on('connection', (socket) => {
       socket.to(roomId).emit('user-left', socket.id);
       console.log(`Пользователь ${socket.id} покинул комнату ${roomId}`);
 
-      // === Сохраняем сразу ===
       try {
         redisClient.set('rooms', JSON.stringify(rooms));
         console.log('Состояние комнат сохранено в Redis (disconnect)');
@@ -294,10 +274,8 @@ io.on('connection', (socket) => {
     if (index !== -1) {
       rooms[roomId].maps[map].objects.splice(index, 1);
 
-      // === Отправить всем ===
       socket.to(roomId).emit('object-removed', { id: data.id });
 
-      // === Сохранить в Redis ===
       try {
         redisClient.set('rooms', JSON.stringify(rooms));
         console.log('Объект удалён и состояние сохранено в Redis');
@@ -310,9 +288,7 @@ io.on('connection', (socket) => {
   
 });
 
-// === Keep-alive endpoint ===
 app.get('/ping', (req, res) => {
-  // Проверяем, есть ли активные комнаты
   const hasActiveRooms = Object.keys(rooms).some(roomId => {
     return rooms[roomId].users && Object.keys(rooms[roomId].users).length > 0;
   });
@@ -331,13 +307,13 @@ server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-// === Сохраняем состояние при завершении работы ===
 process.on('SIGINT', () => {
   console.log('Сохраняем состояние перед завершением...');
   redisClient.set('rooms', JSON.stringify(rooms));
   redisClient.quit();
   process.exit(0);
 });
+
 
 
 
