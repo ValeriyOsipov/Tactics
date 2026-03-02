@@ -568,7 +568,7 @@ function addRadiusInfoTable() {
 
   // Заголовок
   const title = document.createElement('h4');
-  title.textContent = 'Радиусы кораблей (км)';
+  title.textContent = 'Радиус РЛС (км)';
   title.style.margin = '0 0 10px 0';
   title.style.color = 'yellow';
   title.style.fontSize = '13px';
@@ -631,6 +631,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
