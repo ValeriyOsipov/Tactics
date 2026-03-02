@@ -67,7 +67,27 @@ body {
   border-radius: 5px;
 }
 
+#radius-info {
+  font-family: Arial, sans-serif;
+}
+
+#radius-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+#radius-table th, #radius-table td {
+  padding: 2px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+#radius-table th {
+  color: yellow;
+}
 .ship-item {
   cursor: grab;
   display: inline-block;
+
 }
