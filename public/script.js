@@ -545,8 +545,14 @@ function addRadiusInfoTable() {
   // Ждём, пока canvas появится в DOM
   const canvas = document.getElementById('canvas');
   if (!canvas) {
-    console.log('не найден!');
+    console.log('Canvas не найден!');
     return;
+  }
+
+  // Убедимся, что родитель canvas имеет position: relative
+  const parent = canvas.parentElement;
+  if (getComputedStyle(parent).position !== 'relative') {
+    parent.style.position = 'relative';
   }
 
   // Создаём контейнер для таблицы
@@ -555,7 +561,7 @@ function addRadiusInfoTable() {
   tableDiv.style.position = 'absolute';
   tableDiv.style.top = '50%';
   tableDiv.style.transform = 'translateY(-50%)';
-  tableDiv.style.left = `${canvas.offsetLeft + canvas.offsetWidth + 50}px`; // 50px от правого края canvas
+  tableDiv.style.left = `${canvas.offsetWidth + 50}px`; // 50px от правого края canvas
   tableDiv.style.width = '220px';
   tableDiv.style.background = 'rgba(0, 0, 0, 0.7)';
   tableDiv.style.color = 'white';
@@ -615,8 +621,7 @@ function addRadiusInfoTable() {
 
   tableDiv.appendChild(table);
 
-  // Добавляем в родителя canvas (обычно это div с position:relative)
-  const parent = canvas.parentElement;
+  // Добавляем в родителя canvas
   parent.appendChild(tableDiv);
 }
 
@@ -631,6 +636,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
