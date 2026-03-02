@@ -42,7 +42,7 @@ const shipRadii = {
   'Ragnar': 7.5,
   'Gdansk': 9,
   'Smaland': 7.5,
-  'Brisbane': 10,
+  'Brisbane': 12,
   'San Martin': 9
 };
 
@@ -636,6 +636,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
