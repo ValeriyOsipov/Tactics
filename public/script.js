@@ -117,7 +117,7 @@ function animate() {
 
         ctx.beginPath();
         ctx.arc(obj.x, obj.y, radiusPx, 0, Math.PI * 2);
-        ctx.strokeStyle = 'yellow';
+        ctx.strokeStyle = 'rgba(255, 255, 0, 0.5)';
         ctx.lineWidth = 2;
         ctx.stroke();
       }
@@ -548,3 +548,4 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
