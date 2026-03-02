@@ -540,32 +540,88 @@ socket.on('disconnect', (reason) => {
 resizeCanvas();
 window.onresize = resizeCanvas;
 
-// === ЗАПОЛНЕНИЕ ТАБЛИЦЫ ===
-function fillRadiusTable() {
-  const tbody = document.querySelector('#radius-table tbody');
-  tbody.innerHTML = ''; // Очищаем перед заполнением
+// === ДОБАВЛЕНИЕ ТАБЛИЦЫ СПРАВА ОТ КАРТЫ (не ломая верстку) ===
+function addRadiusInfoTable() {
+  // Ждём, пока canvas появится в DOM
+  const canvas = document.getElementById('canvas');
+  if (!canvas) {
+    не найден!');
+    return;
+  }
 
+  // Создаём контейнер для таблицы
+  const tableDiv = document.createElement('div');
+  tableDiv.id = 'radius-info';
+  tableDiv.style.position = 'absolute';
+  tableDiv.style.top = '50%';
+  tableDiv.style.transform = 'translateY(-50%)';
+  tableDiv.style.left = `${canvas.offsetLeft + canvas.offsetWidth + 50}px`; // 50px от правого края canvas
+  tableDiv.style.width = '220px';
+  tableDiv.style.background = 'rgba(0, 0, 0, 0.7)';
+  tableDiv.style.color = 'white';
+  tableDiv.style.padding = '10px';
+  tableDiv.style.borderRadius = '5px';
+  tableDiv.style.fontSize = '12px';
+  tableDiv.style.zIndex = '10';
+  tableDiv.style.fontFamily = 'Arial, sans-serif';
+  tableDiv.style.boxSizing = 'border-box';
+
+  // Заголовок
+  const title = document.createElement('h4');
+  title.textContent = 'Радиусы кораблей (км)';
+  title.style.margin = '0 0 10px 0';
+  title.style.color = 'yellow';
+  title.style.fontSize = '13px';
+  tableDiv.appendChild(title);
+
+  // Таблица
+  const table = document.createElement('table');
+  table.id = 'radius-table';
+  table.style.width = '100%';
+  table.style.borderCollapse = 'collapse';
+  table.style.fontSize = '11px';
+
+  // Заголовки
+  const headerRow = document.createElement('tr');
+  const th1 = document.createElement('th');
+  th1.textContent = 'Корабль';
+  th1.style.textAlign = 'left';
+  th1.style.padding = '2px';
+  th1.style.color = 'yellow';
+  const th2 = document.createElement('th');
+  th2.textContent = 'Радиус';
+  th2.style.textAlign = 'left';
+  th2.style.padding = '2px';
+  th2.style.color = 'yellow';
+  headerRow.appendChild(th1);
+  headerRow.appendChild(th2);
+  table.appendChild(headerRow);
+
+  // Данные
   for (const name in shipRadii) {
     const row = document.createElement('tr');
-
     const td1 = document.createElement('td');
     td1.textContent = name;
     td1.style.padding = '2px';
     td1.style.borderBottom = '1px solid rgba(255, 255, 255, 0.2)';
-
     const td2 = document.createElement('td');
     td2.textContent = shipRadii[name];
     td2.style.padding = '2px';
     td2.style.borderBottom = '1px solid rgba(255, 255, 255, 0.2)';
-
     row.appendChild(td1);
     row.appendChild(td2);
-    tbody.appendChild(row);
+    table.appendChild(row);
   }
+
+  tableDiv.appendChild(table);
+
+  // Добавляем в родителя canvas (обычно это div с position:relative)
+  const parent = canvas.parentElement;
+  parent.appendChild(tableDiv);
 }
 
 // Вызов при загрузке
-fillRadiusTable();
+addRadiusInfoTable();
 
 // === ФУНКЦИЯ ДЛЯ ОТЛАДКИ ===
 window.dumpAllObjects = () => {
@@ -575,6 +631,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
