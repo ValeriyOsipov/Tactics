@@ -310,6 +310,22 @@ io.on('connection', (socket) => {
   
 });
 
+// === Keep-alive endpoint ===
+app.get('/ping', (req, res) => {
+  // Проверяем, есть ли активные комнаты
+  const hasActiveRooms = Object.keys(rooms).some(roomId => {
+    return rooms[roomId].users && Object.keys(rooms[roomId].users).length > 0;
+  });
+
+  if (hasActiveRooms) {
+    console.log('Ping received, active rooms detected.');
+    res.status(200).send('OK - Active rooms');
+  } else {
+    console.log('Ping received, no active rooms.');
+    res.status(200).send('OK - No active rooms');
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
@@ -322,5 +338,6 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
 
 
