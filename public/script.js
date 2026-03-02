@@ -19,11 +19,9 @@ let selectedObject = null;
 let offsetX, offsetY;
 let isDragging = false;
 
-// === ПЕРЕМЕННЫЕ ДЛЯ ХРАНЕНИЯ ИНФОРМАЦИИ О КОМНАТЕ ===
 let currentRoomId = null;
 let currentUserName = null;
 
-// === СПРАВОЧНИК КОРАБЛЕЙ С РАДИУСАМИ (в км) ===
 const shipRadii = {
   'Des Moines': 10,
   'Salem': 8.5,
@@ -46,7 +44,6 @@ const shipRadii = {
   'San Martin': 9
 };
 
-// === РАЗМЕР КАРТ (в км) ===
 const mapSizes = {
   'Греция.jpeg': 42,
   'Ледяные острова.png': 42,
@@ -58,7 +55,6 @@ const mapSizes = {
   'Зона крушения Альфа.png': 42
 };
 
-// === НОВАЯ АНИМАЦИЯ ===
 const ripples = [];
 
 class Ripple {
@@ -87,16 +83,13 @@ class Ripple {
   }
 }
 
-// === ОБЪЕДИНЁННЫЙ requestAnimationFrame ===
 function animate() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Рисуем фон
   if (bgLoaded) {
     ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
   }
 
-  // Рисуем объекты
   objects.forEach(obj => {
     if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
       const img = shipImages[obj.type][obj.color];
@@ -110,10 +103,9 @@ function animate() {
       }
       ctx.drawImage(img, obj.x - img.width / 2, obj.y - img.height / 2);
 
-      // === РИСУЕМ ОКРУЖНОСТЬ, ЕСЛИ ПОДПИСЬ СОВПАДАЕТ ===
       if (obj.label && shipRadii[obj.label]) {
-        const mapSizeKm = mapSizes[currentMap] || 42; // по умолчанию 42
-        const radiusPx = (shipRadii[obj.label] / mapSizeKm) * canvas.width; // 900px = размер карты
+        const mapSizeKm = mapSizes[currentMap] || 42;
+        const radiusPx = (shipRadii[obj.label] / mapSizeKm) * canvas.width;
 
         ctx.beginPath();
         ctx.arc(obj.x, obj.y, radiusPx, 0, Math.PI * 2);
@@ -122,7 +114,6 @@ function animate() {
         ctx.stroke();
       }
 
-      // Рисуем подпись под кораблём
       if (obj.label) {
         ctx.font = '12px Arial';
         ctx.fillStyle = 'yellow';
@@ -138,7 +129,6 @@ function animate() {
     }
   });
 
-  // Рисуем анимацию (волн)
   for (let i = ripples.length - 1; i >= 0; i--) {
     if (!ripples[i].update()) {
       ripples.splice(i, 1);
@@ -150,15 +140,12 @@ function animate() {
   requestAnimationFrame(animate);
 }
 
-// === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ===
 let bgImage = new Image();
 let bgLoaded = false;
 let shipImages = {};
 
-// Запускаем анимацию один раз
 animate();
 
-// Загрузка списка карт
 socket.emit('get-available-maps');
 
 socket.on('available-maps', (maps) => {
@@ -172,7 +159,6 @@ socket.on('available-maps', (maps) => {
   mapSelect.value = 'Греция.jpeg';
 });
 
-// Загрузка SVG-изображений кораблей
 ['lk', 'kr', 'es'].forEach(type => {
   shipImages[type] = {};
   ['red', 'green'].forEach(color => {
@@ -192,7 +178,6 @@ socket.on('available-maps', (maps) => {
   });
 });
 
-// Загрузка фона
 function loadBackground(map) {
   bgImage = new Image();
   bgImage.src = `maps/${map}`;
@@ -204,7 +189,6 @@ function loadBackground(map) {
   };
 }
 
-// Установка размера canvas
 function resizeCanvas() {
   canvas.width = 600;
   canvas.height = 600;
@@ -251,7 +235,6 @@ socket.on('object-updated', (data) => {
   }
 });
 
-// === УДАЛЕНИЕ ОБЪЕКТА ===
 socket.on('object-removed', (data) => {
   const index = objects.findIndex(o => o.id === data.id);
   if (index !== -1) {
@@ -282,7 +265,6 @@ function updateUsersList(users) {
   });
 }
 
-// Обработка кликов по canvas
 let currentTool = null;
 
 canvas.onclick = (e) => {
@@ -291,10 +273,8 @@ canvas.onclick = (e) => {
   const y = e.clientY - rect.top;
   const id = Date.now() + Math.random();
 
-  // === Добавляем анимацию локально ===
   ripples.push(new Ripple(x, y));
 
-  // === Отправляем анимацию всем другим ===
   socket.emit('click-effect', { x, y });
 
   if (currentTool === 'note') {
@@ -307,19 +287,16 @@ canvas.onclick = (e) => {
   }
 };
 
-// Обработка получения анимации клика от других
 socket.on('click-effect', (data) => {
-  // === Добавляем анимацию от других ===
   ripples.push(new Ripple(data.x, data.y));
 });
 
-// === ОБРАБОТКА ПКМ (удаление) ===
 canvas.oncontextmenu = (e) => {
-  e.preventDefault(); // Отключаем контекстное меню
+  e.preventDefault();
 };
 
 canvas.onmousedown = (e) => {
-  if (e.button === 2) { // === ПКМ ===
+  if (e.button === 2) {
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -341,7 +318,6 @@ canvas.onmousedown = (e) => {
       if (inBounds) {
         if (confirm('Удалить маркер?')) {
           socket.emit('remove-object', { id: obj.id });
-          // Удаляем локально
           objects.splice(i, 1);
           allObjects[currentMap] = objects;
         }
@@ -349,7 +325,6 @@ canvas.onmousedown = (e) => {
       }
     }
   } else {
-    // === ЛКМ (ранее) ===
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -393,7 +368,6 @@ canvas.onmousemove = (e) => {
 
 canvas.onmouseup = () => {
   if (isDragging && selectedObject) {
-    // === Добавляем анимацию при отпускании ===
     ripples.push(new Ripple(selectedObject.x, selectedObject.y));
 
     socket.emit('drag-end-effect', { x: selectedObject.x, y: selectedObject.y });
@@ -405,9 +379,7 @@ canvas.onmouseup = () => {
   canvas.style.cursor = 'default';
 };
 
-// Обработка получения анимации drag-end от других
 socket.on('drag-end-effect', (data) => {
-  // === Добавляем анимацию от других ===
   ripples.push(new Ripple(data.x, data.y));
 });
 
@@ -417,7 +389,6 @@ canvas.onmouseleave = () => {
   canvas.style.cursor = 'default';
 };
 
-// Обработка **двойного клика** по кораблю
 canvas.ondblclick = (e) => {
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
@@ -436,13 +407,11 @@ canvas.ondblclick = (e) => {
     }
 
     if (inBounds) {
-      // Открываем поле ввода для подписи
       const newLabel = prompt('Введите подпись для корабля:', obj.label || '');
       if (newLabel !== null) {
         obj.label = newLabel;
         allObjects[currentMap] = objects;
 
-        // Отправляем обновление подписи
         socket.emit('update-object', { id: obj.id, x: obj.x, y: obj.y, label: obj.label });
       }
       return;
@@ -450,7 +419,6 @@ canvas.ondblclick = (e) => {
   }
 };
 
-// Обработка перетаскивания корабля из панели
 shipsPanel.addEventListener('dragstart', (e) => {
   const el = e.target.closest('.ship-item');
   if (!el) return;
@@ -477,10 +445,8 @@ canvas.addEventListener('drop', (e) => {
   const y = e.clientY - rect.top;
   const id = Date.now() + Math.random();
 
-  // === Добавляем анимацию локально ===
   ripples.push(new Ripple(x, y));
 
-  // === Отправляем анимацию всем другим ===
   socket.emit('drop-effect', { x, y });
 
   const obj = { id, type, x, y, color, label: '' };
@@ -489,13 +455,10 @@ canvas.addEventListener('drop', (e) => {
   socket.emit('add-object', obj);
 });
 
-// Обработка получения анимации drop от других
 socket.on('drop-effect', (data) => {
-  // === Добавляем анимацию от других ===
   ripples.push(new Ripple(data.x, data.y));
 });
 
-// Обработка смены карты
 mapSelect.onchange = (e) => {
   const newMap = e.target.value;
   socket.emit('get-map-objects', { map: newMap });
@@ -503,7 +466,6 @@ mapSelect.onchange = (e) => {
   socket.emit('change-map', { map: newMap });
 };
 
-// Обработка получения объектов для карты
 socket.on('map-objects', (data) => {
   allObjects[data.map] = data.objects || [];
   if (data.map === currentMap) {
@@ -512,7 +474,6 @@ socket.on('map-objects', (data) => {
   }
 });
 
-// Обработка получения смены карты от других пользователей
 socket.on('map-changed', (data) => {
   currentMap = data.map;
   mapSelect.value = currentMap;
@@ -524,7 +485,6 @@ socket.on('map-changed', (data) => {
   }
 });
 
-// === ОБРАБОТКА RECONNECT / DISCONNECT ===
 socket.on('reconnect', (attemptNumber) => {
   console.log('Соединение восстановлено, попытка:', attemptNumber);
   if (currentRoomId && currentUserName) {
@@ -536,32 +496,27 @@ socket.on('disconnect', (reason) => {
   console.log('Соединение потеряно:', reason);
 });
 
-// Установка размера canvas при загрузке
 resizeCanvas();
 window.onresize = resizeCanvas;
 
-// === ДОБАВЛЕНИЕ ТАБЛИЦЫ СПРАВА ОТ КАРТЫ (не ломая верстку) ===
 function addRadiusInfoTable() {
-  // Ждём, пока canvas появится в DOM
   const canvas = document.getElementById('canvas');
   if (!canvas) {
     console.log('Canvas не найден!');
     return;
   }
 
-  // Убедимся, что родитель canvas имеет position: relative
   const parent = canvas.parentElement;
   if (getComputedStyle(parent).position !== 'relative') {
     parent.style.position = 'relative';
   }
 
-  // Создаём контейнер для таблицы
   const tableDiv = document.createElement('div');
   tableDiv.id = 'radius-info';
   tableDiv.style.position = 'absolute';
   tableDiv.style.top = '50%';
   tableDiv.style.transform = 'translateY(-50%)';
-  tableDiv.style.left = 'calc(50% + 350px)'; // 50px от правого края canvas
+  tableDiv.style.left = 'calc(50% + 350px)';
   tableDiv.style.width = '220px';
   tableDiv.style.background = 'rgba(0, 0, 0, 0.7)';
   tableDiv.style.color = 'white';
@@ -572,7 +527,6 @@ function addRadiusInfoTable() {
   tableDiv.style.fontFamily = 'Arial, sans-serif';
   tableDiv.style.boxSizing = 'border-box';
 
-  // Заголовок
   const title = document.createElement('h4');
   title.textContent = 'Радиус РЛС (км)';
   title.style.margin = '0 0 10px 0';
@@ -580,14 +534,12 @@ function addRadiusInfoTable() {
   title.style.fontSize = '13px';
   tableDiv.appendChild(title);
 
-  // Таблица
   const table = document.createElement('table');
   table.id = 'radius-table';
   table.style.width = '100%';
   table.style.borderCollapse = 'collapse';
   table.style.fontSize = '11px';
 
-  // Заголовки
   const headerRow = document.createElement('tr');
   const th1 = document.createElement('th');
   th1.textContent = 'Корабль';
@@ -603,7 +555,6 @@ function addRadiusInfoTable() {
   headerRow.appendChild(th2);
   table.appendChild(headerRow);
 
-  // Данные
   for (const name in shipRadii) {
     const row = document.createElement('tr');
     const td1 = document.createElement('td');
@@ -621,14 +572,11 @@ function addRadiusInfoTable() {
 
   tableDiv.appendChild(table);
 
-  // Добавляем в родителя canvas
   parent.appendChild(tableDiv);
 }
 
-// Вызов при загрузке
 addRadiusInfoTable();
 
-// === ФУНКЦИЯ ДЛЯ ОТЛАДКИ ===
 window.dumpAllObjects = () => {
   console.log('=== Состояние allObjects ===');
   console.log(allObjects);
@@ -636,6 +584,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
