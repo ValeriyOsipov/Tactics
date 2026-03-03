@@ -8,7 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: "*",
+    origin: "https://mk-tactics.ru",
     methods: ["GET", "POST"]
   },
   pingInterval: 5000,
@@ -105,6 +105,7 @@ const availableMaps = [
 ];
 
 io.on('connection', (socket) => {
+  console.log('Подключение клиента:', socket.id);
   socket.on('get-available-maps', () => {
     socket.emit('available-maps', availableMaps);
   });
@@ -325,6 +326,7 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
 
 
 
