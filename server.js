@@ -6,7 +6,14 @@ const { createClient } = require('redis');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = socketIo(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  },
+  pingInterval: 10000,
+  pingTimeout: 5000
+});
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -318,6 +325,7 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
 
 
 
