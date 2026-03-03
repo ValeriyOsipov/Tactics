@@ -102,7 +102,7 @@ io.on('connection', (socket) => {
     socket.emit('available-maps', availableMaps);
   });
 
-  socket.on('join-room', async ({ roomId, userName, password }) =>
+  socket.on('join-room', async ({ roomId, userName, password }) => {
     socket.join(roomId);
   
     try {
@@ -318,6 +318,7 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
 
 
 
