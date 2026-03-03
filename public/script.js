@@ -55,6 +55,47 @@ const mapSizes = {
   'Зона крушения Альфа.png': 42
 };
 
+function isValidString(str) {
+  if (str.length > 15) return false;
+  // Только буквы (латиница, кириллица) и цифры
+  return /^[a-zA-Zа-яА-ЯёЁ0-9]*$/.test(str);
+}
+
+joinBtn.onclick = () => {
+  const roomId = roomIdInput.value.trim();
+  const userName = userNameInput.value.trim();
+  const password = document.getElementById('room-password').value;
+
+  if (!roomId) {
+    alert('Введите название комнаты.');
+    return;
+  }
+
+  if (!isValidString(roomId)) {
+    alert('Название комнаты должно содержать только латиницу, кириллицу, цифры и быть не длиннее 15 символов.');
+    return;
+  }
+
+  if (!isValidString(userName)) {
+    alert('Имя должно содержать только латиницу, кириллицу, цифры и быть не длиннее 15 символов.');
+    return;
+  }
+
+  if (password && !isValidString(password)) {
+    alert('Пароль должен содержать только латиницу, кириллицу, цифры и быть не длиннее 15 символов.');
+    return;
+  }
+
+  currentRoomId = roomId;
+  currentUserName = userName;
+
+  socket.emit('join-room', { roomId, userName, password });
+  roomInput.style.display = 'none';
+  canvasContainer.style.display = 'block';
+  roomDisplay.textContent = roomId;
+  resizeCanvas();
+};
+
 const ripples = [];
 
 class Ripple {
@@ -591,6 +632,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
