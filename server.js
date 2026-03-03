@@ -11,8 +11,8 @@ const io = socketIo(server, {
     origin: "*",
     methods: ["GET", "POST"]
   },
-  pingInterval: 10000,
-  pingTimeout: 5000
+  pingInterval: 5000,
+  pingTimeout: 3000
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -325,6 +325,7 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
 
 
 
