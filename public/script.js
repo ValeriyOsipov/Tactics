@@ -57,13 +57,12 @@ const mapSizes = {
 
 function isValidString(str) {
   if (str.length > 15) return false;
-  // Только буквы (латиница, кириллица) и цифры
   return /^[a-zA-Zа-яА-ЯёЁ0-9]*$/.test(str);
 }
 
 joinBtn.onclick = () => {
   const roomId = roomIdInput.value.trim();
-  const userName = userNameInput.value.trim();
+  const userName = userNameInput.value.trim() || User;
   const password = document.getElementById('room-password').value;
 
   if (!roomId) {
@@ -234,22 +233,6 @@ function resizeCanvas() {
   canvas.width = 600;
   canvas.height = 600;
 }
-
-joinBtn.onclick = () => {
-  const roomId = roomIdInput.value.trim();
-  const userName = userNameInput.value.trim() || 'User';
-  const password = document.getElementById('room-password').value;
-  if (!roomId) return;
-
-  currentRoomId = roomId;
-  currentUserName = userName;
-
-  socket.emit('join-room', { roomId, userName, password });
-  roomInput.style.display = 'none';
-  canvasContainer.style.display = 'block';
-  roomDisplay.textContent = roomId;
-  resizeCanvas();
-};
 
 socket.on('wrong-password', () => {
   alert('Пароль для уже существующей комнаты не подошел. Создайте новую комнату с другим названием, либо уточните пароль для данной комнаты.');
@@ -632,6 +615,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
