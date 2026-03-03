@@ -197,17 +197,24 @@ function resizeCanvas() {
 joinBtn.onclick = () => {
   const roomId = roomIdInput.value.trim();
   const userName = userNameInput.value.trim() || 'User';
+  const password = document.getElementById('room-password').value;
   if (!roomId) return;
 
   currentRoomId = roomId;
   currentUserName = userName;
 
-  socket.emit('join-room', { roomId, userName });
+  socket.emit('join-room', { roomId, userName, password });
   roomInput.style.display = 'none';
   canvasContainer.style.display = 'block';
   roomDisplay.textContent = roomId;
   resizeCanvas();
 };
+
+socket.on('wrong-password', () => {
+  alert('Пароль для уже существующей комнаты не подошел. Создайте новую комнату с другим названием, либо уточните пароль для данной комнаты.');
+  roomInput.style.display = 'block';
+  canvasContainer.style.display = 'none';
+});
 
 socket.on('room-data', (data) => {
   allObjects = {};
@@ -584,6 +591,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
