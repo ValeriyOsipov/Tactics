@@ -27,6 +27,7 @@ let isDragging = false;
 
 let currentRoomId = null;
 let currentUserName = null;
+let currentPassword = null;
 
 const shipRadii = {
   'Des Moines': 10,
@@ -68,7 +69,7 @@ function isValidString(str) {
 
 joinBtn.onclick = () => {
   const roomId = roomIdInput.value.trim();
-  const userName = userNameInput.value.trim() || User;
+  const userName = userNameInput.value.trim() || 'User';
   const password = document.getElementById('room-password').value;
 
   if (!roomId) {
@@ -638,6 +639,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
