@@ -529,14 +529,15 @@ socket.on('map-changed', (data) => {
   }
 });
 
-socket.on('reconnect_attempt', (attemptNumber) => {
-  console.log('Попытка переподключения:', attemptNumber);
-});
-
-socket.on('reconnect', (attemptNumber) => {
-  console.log('Переподключён!', attemptNumber);
+socket.on('connect', () => {
+  console.log('Новое подключение, ID:', socket.id);
   if (currentRoomId && currentUserName) {
-    socket.emit('join-room', { roomId: currentRoomId, userName: currentUserName, password: currentPassword || '' });
+    console.log('Отправляем join-room при connect...');
+    socket.emit('join-room', {
+      roomId: currentRoomId,
+      userName: currentUserName,
+      password: currentPassword || ''
+    });
   }
 });
 
@@ -639,6 +640,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
