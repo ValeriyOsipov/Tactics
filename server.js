@@ -102,9 +102,9 @@ io.on('connection', (socket) => {
     socket.emit('available-maps', availableMaps);
   });
 
-  socket.on('join-room', async ({ roomId, userName }) => {
+  socket.on('join-room', async ({ roomId, userName, password }) =>
     socket.join(roomId);
-
+  
     try {
       const redisData = await redisClient.get('rooms');
       if (redisData) {
@@ -114,12 +114,17 @@ io.on('connection', (socket) => {
     } catch (e) {
       console.error('Ошибка при чтении rooms из Redis:', e);
     }
-
+  
     if (!rooms[roomId]) {
-      rooms[roomId] = { maps: {}, users: {}, currentMap: 'Греция.jpeg' };
+      rooms[roomId] = { maps: {}, users: {}, currentMap: 'Греция.jpeg', password: password || '' };
       console.log(`Комната создана: ${roomId}`);
+    } else {
+      if (rooms[roomId].password && rooms[roomId].password !== password) {
+        socket.emit('wrong-password');
+        return;
+      }
     }
-
+  
     let currentMap = rooms[roomId].currentMap;
     if (!rooms[roomId].maps[currentMap]?.objects?.length) {
       console.log(`currentMap "${currentMap}" пуста или не существует, ищем карту с объектами...`);
@@ -133,25 +138,25 @@ io.on('connection', (socket) => {
         }
       }
     }
-
+  
     if (!rooms[roomId].maps[currentMap]) {
       rooms[roomId].maps[currentMap] = { objects: [] };
     }
-
+  
     rooms[roomId].users[socket.id] = { id: socket.id, name: userName || `User ${Object.keys(rooms[roomId].users).length + 1}` };
-
+  
     socket.roomId = roomId;
     socket.currentMap = currentMap;
-
+  
     console.log(`Пользователь ${socket.id} (${name}) зашёл в комнату ${roomId}`);
-
+  
     socket.to(roomId).emit('user-joined', rooms[roomId].users[socket.id]);
     socket.emit('room-data', {
       objects: rooms[roomId].maps[currentMap].objects,
       currentMap: currentMap,
       users: Object.values(rooms[roomId].users)
     });
-
+  
     try {
       redisClient.set('rooms', JSON.stringify(rooms));
       console.log('Состояние комнат сохранено в Redis (join-room)');
@@ -313,6 +318,7 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
 
 
 
