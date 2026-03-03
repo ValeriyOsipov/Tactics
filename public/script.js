@@ -630,7 +630,7 @@ setInterval(() => {
     .then(response => response.text())
     .then(data => console.log('Keep-alive ping:', data))
     .catch(err => console.error('Keep-alive failed:', err));
-}, 3 * 60 * 1000);
+}, 10 * 60 * 1000);
 
 window.dumpAllObjects = () => {
   console.log('=== Состояние allObjects ===');
@@ -639,6 +639,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
