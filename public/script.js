@@ -1,4 +1,9 @@
-const socket = io();
+const socket = io({
+  transports: ['websocket'],
+  reconnection: true,
+  reconnectionDelay: 1000,
+  reconnectionAttempts: Infinity
+});
 
 const roomInput = document.getElementById('room-input');
 const roomIdInput = document.getElementById('room-id');
@@ -627,6 +632,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
