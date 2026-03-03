@@ -613,6 +613,13 @@ function addRadiusInfoTable() {
 
 addRadiusInfoTable();
 
+setInterval(() => {
+  fetch('/ping')
+    .then(response => response.text())
+    .then(data => console.log('Keep-alive ping:', data))
+    .catch(err => console.error('Keep-alive failed:', err));
+}, 8 * 60 * 1000);
+
 window.dumpAllObjects = () => {
   console.log('=== Состояние allObjects ===');
   console.log(allObjects);
@@ -620,6 +627,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
