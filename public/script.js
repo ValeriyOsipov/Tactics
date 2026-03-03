@@ -2,7 +2,8 @@ const socket = io({
   transports: ['websocket'],
   reconnection: true,
   reconnectionDelay: 1000,
-  reconnectionAttempts: Infinity
+  reconnectionAttempts: Infinity,
+  timeout: 20000
 });
 
 const roomInput = document.getElementById('room-input');
@@ -92,7 +93,8 @@ joinBtn.onclick = () => {
 
   currentRoomId = roomId;
   currentUserName = userName;
-
+  currentPassword = password;
+  
   socket.emit('join-room', { roomId, userName, password });
   roomInput.style.display = 'none';
   canvasContainer.style.display = 'block';
@@ -526,10 +528,14 @@ socket.on('map-changed', (data) => {
   }
 });
 
+socket.on('reconnect_attempt', (attemptNumber) => {
+  console.log('Попытка переподключения:', attemptNumber);
+});
+
 socket.on('reconnect', (attemptNumber) => {
-  console.log('Соединение восстановлено, попытка:', attemptNumber);
+  console.log('Переподключён!', attemptNumber);
   if (currentRoomId && currentUserName) {
-    socket.emit('join-room', { roomId: currentRoomId, userName: currentUserName });
+    socket.emit('join-room', { roomId: currentRoomId, userName: currentUserName, password: currentPassword || '' });
   }
 });
 
@@ -632,6 +638,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
