@@ -148,7 +148,7 @@ io.on('connection', (socket) => {
     socket.roomId = roomId;
     socket.currentMap = currentMap;
   
-    console.log(`Пользователь ${socket.id} (${name}) зашёл в комнату ${roomId}`);
+    console.log(`Пользователь ${socket.id} (${userName}) зашёл в комнату ${roomId}`);
   
     socket.to(roomId).emit('user-joined', rooms[roomId].users[socket.id]);
     socket.emit('room-data', {
@@ -318,6 +318,7 @@ process.on('SIGINT', () => {
   redisClient.quit();
   process.exit(0);
 });
+
 
 
 
