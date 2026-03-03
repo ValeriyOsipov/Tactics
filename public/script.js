@@ -438,8 +438,13 @@ canvas.ondblclick = (e) => {
     }
 
     if (inBounds) {
-      const newLabel = prompt('Введите подпись для корабля:', obj.label || '');
+      const newLabel = prompt('Введите название корабля:', obj.label || '');
       if (newLabel !== null) {
+        if (!isValidString(newLabel)) {
+          alert('Название корабля должно содержать только латиницу, кириллицу, цифры и быть не длиннее 15 символов.');
+          return;
+        }
+
         obj.label = newLabel;
         allObjects[currentMap] = objects;
 
@@ -615,6 +620,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
