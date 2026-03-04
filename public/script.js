@@ -440,7 +440,6 @@ document.addEventListener('mousemove', (e) => {
 
 document.addEventListener('mouseup', (e) => {
   if (isDragging && selectedObject) {
-    // === СОЗДАЁМ RIPPLE ===
     ripples.push(new Ripple(selectedObject.x, selectedObject.y));
 
     socket.emit('drag-end-effect', { x: selectedObject.x, y: selectedObject.y });
@@ -461,7 +460,7 @@ document.addEventListener('mouseup', (e) => {
     canvas.style.cursor = 'default';
   }
 
-  if (!isDragging && draggedObj) {
+  if (draggedObj) {
     const trashRect = trashcan.getBoundingClientRect();
     const mouseX = e.clientX;
     const mouseY = e.clientY;
@@ -475,8 +474,10 @@ document.addEventListener('mouseup', (e) => {
 
       console.log('Объект удалён:', draggedObj.obj.id);
     } else {
-      draggedObj.obj.x = draggedObj.originalX;
-      draggedObj.obj.y = draggedObj.originalY;
+      if (!isDragging) {
+        draggedObj.obj.x = draggedObj.originalX;
+        draggedObj.obj.y = draggedObj.originalY;
+      }
     }
 
     draggedObj = null;
@@ -741,6 +742,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
