@@ -166,49 +166,58 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('add-object', async (data) => {
-    const roomId = socket.roomId;
-    const map = socket.currentMap;
-    if (roomId) {
-      let room = await getRoom(roomId);
-      if (room && room.maps[map]) {
-        room.maps[map].objects.push(data);
-        socket.to(roomId).emit('object-added', data);
+socket.on('add-object', async (data) => {
+  const roomId = socket.roomId;
+  const map = socket.currentMap;
+  if (roomId) {
+    let room = await getRoom(roomId);
+    if (room && room.maps[map]) {
+      if (data.rotation === undefined) data.rotation = 0;
+
+      room.maps[map].objects.push(data);
+      socket.to(roomId).emit('object-added', data);
+
+      try {
+        await saveRoom(roomId, room);
+        console.log(`[ROOM: ${roomId}] Состояние комнаты сохранено в Redis (add-object)`);
+      } catch (e) {
+        console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (add-object):`, e);
+      }
+    }
+  }
+});
+
+socket.on('update-object', async (data) => {
+  console.log('Получено update-object:', data); // ← Лог
+
+  const roomId = socket.roomId;
+  const map = socket.currentMap;
+  if (roomId) {
+    let room = await getRoom(roomId);
+    if (room && room.maps[map]) {
+      const obj = room.maps[map].objects.find(o => o.id === data.id);
+      if (obj) {
+        obj.x = data.x;
+        obj.y = data.y;
+        if (data.label !== undefined) obj.label = data.label;
+        if (data.rotation !== undefined) obj.rotation = data.rotation; // ← НОВОЕ
+
+        socket.to(roomId).emit('object-updated', data);
 
         try {
           await saveRoom(roomId, room);
-          console.log('Состояние комнаты сохранено в Redis (add-object)');
+          console.log(`[ROOM: ${roomId}] Состояние комнаты сохранено в Redis (update-object)`);
         } catch (e) {
-          console.error('Ошибка при сохранении состояния в Redis (add-object):', e);
+          console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (update-object):`, e);
         }
+      } else {
+        console.log('Объект не найден при update-object:', data.id);
       }
+    } else {
+      console.log('Комната или карта не найдены при update-object');
     }
-  });
-
-  socket.on('update-object', async (data) => {
-    const roomId = socket.roomId;
-    const map = socket.currentMap;
-    if (roomId) {
-      let room = await getRoom(roomId);
-      if (room && room.maps[map]) {
-        const obj = room.maps[map].objects.find(o => o.id === data.id);
-        if (obj) {
-          obj.x = data.x;
-          obj.y = data.y;
-          if (data.label !== undefined) obj.label = data.label;
-
-          socket.to(roomId).emit('object-updated', data);
-
-          try {
-            await saveRoom(roomId, room);
-            console.log(`[ROOM: ${roomId}] Состояние комнаты сохранено в Redis (update-object)`);
-          } catch (e) {
-            console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (update-object):`, e);
-          }
-        }
-      }
-    }
-  });
+  }
+});
 
   socket.on('change-map', async (data) => {
     const roomId = socket.roomId;
@@ -369,4 +378,5 @@ async function clearUsersOnStartup() {
 }
 
 clearUsersOnStartup();
+
 
