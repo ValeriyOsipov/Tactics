@@ -64,7 +64,7 @@ const mapSizes = {
 
 function isValidString(str) {
   if (str.length > 15) return false;
-  return /^[a-zA-Zа-яА-ЯёЁ0-9]*$/.test(str);
+  return /^[a-zA-Zа-яА-ЯёЁ0-9 ]*$/.test(str);
 }
 
 joinBtn.onclick = () => {
@@ -640,6 +640,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
