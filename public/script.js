@@ -228,11 +228,11 @@ socket.on('available-maps', (maps) => {
     img.src = `ships/${type}_${color}.svg`;
 img.onload = () => {
   if (img.width === 0 || img.height === 0) {
-    img.width = 45;
-    img.height = 45;
+    img.width = 30;
+    img.height = 30;
   } else {
-    img.width = 45;
-    img.height = 45;
+    img.width = 30;
+    img.height = 30;
   }
 };
     img.onerror = () => {
@@ -384,7 +384,6 @@ canvas.oncontextmenu = (e) => {
   }
 };
 
-// === ОБЪЕДИНЁННЫЙ DRAG-AND-DROP ===
 canvas.onmousedown = (e) => {
   if (e.button === 2) return;
 
@@ -407,14 +406,12 @@ canvas.onmousedown = (e) => {
     }
 
     if (inBounds) {
-      // === ОБЫЧНЫЙ DRAG ===
       selectedObject = obj;
       offsetX = obj.x - x;
       offsetY = obj.y - y;
       isDragging = true;
       canvas.style.cursor = 'grabbing';
 
-      // === УДАЛЕНИЕ ===
       draggedObj = { obj, originalX: obj.x, originalY: obj.y, index: i };
 
       break;
@@ -427,11 +424,13 @@ document.addEventListener('mousemove', (e) => {
     const rect = canvas.getBoundingClientRect();
     selectedObject.x = e.clientX - rect.left + offsetX;
     selectedObject.y = e.clientY - rect.top + offsetY;
+
+    allObjects[currentMap] = objects;
+
     drawObjects();
   }
 
   if (!isDragging && draggedObj) {
-    // === ДВИЖЕНИЕ ДЛЯ УДАЛЕНИЯ ===
     const rect = canvas.getBoundingClientRect();
     draggedObj.obj.x = e.clientX - rect.left;
     draggedObj.obj.y = e.clientY - rect.top;
@@ -441,7 +440,8 @@ document.addEventListener('mousemove', (e) => {
 
 document.addEventListener('mouseup', (e) => {
   if (isDragging && selectedObject) {
-    // === ОБЫЧНОЕ ПЕРЕМЕЩЕНИЕ ===
+    allObjects[currentMap] = objects;
+
     ripples.push(new Ripple(selectedObject.x, selectedObject.y));
 
     socket.emit('drag-end-effect', { x: selectedObject.x, y: selectedObject.y });
@@ -454,14 +454,12 @@ document.addEventListener('mouseup', (e) => {
   }
 
   if (!isDragging && draggedObj) {
-    // === УДАЛЕНИЕ ===
     const trashRect = trashcan.getBoundingClientRect();
     const mouseX = e.clientX;
     const mouseY = e.clientY;
 
     if (mouseX >= trashRect.left && mouseX <= trashRect.right &&
         mouseY >= trashRect.top && mouseY <= trashRect.bottom) {
-      // === УДАЛЯЕМ ОБЪЕКТ ===
       objects.splice(draggedObj.index, 1);
       allObjects[currentMap] = objects;
 
@@ -469,7 +467,6 @@ document.addEventListener('mouseup', (e) => {
 
       console.log('Объект удалён:', draggedObj.obj.id);
     } else {
-      // === ВОЗВРАТ НА МЕСТО ===
       draggedObj.obj.x = draggedObj.originalX;
       draggedObj.obj.y = draggedObj.originalY;
     }
@@ -480,11 +477,9 @@ document.addEventListener('mouseup', (e) => {
 });
 
 canvas.onmousemove = (e) => {
-  // Не используется — обработка в document.addEventListener('mousemove')
 };
 
 canvas.onmouseup = () => {
-  // Не используется — обработка в document.addEventListener('mouseup')
 };
 
 socket.on('drag-end-effect', (data) => {
@@ -738,3 +733,4 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
