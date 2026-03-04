@@ -81,7 +81,7 @@ app.post('/admin/load-redis', express.json({ limit: '50mb' }), async (req, res) 
 
     console.log('Новое состояние (после преобразования):', JSON.stringify(newState).substring(0, 100) + '...');
 
-    // === СОХРАНИТЬ КАЖДУЮ КОМНАДЕЛЬНО ===
+    // === СОХРАНИТЬ КАЖДУЮ КОМНАТУ ОТДЕЛЬНО ===
     for (const roomId in newState) {
       await saveRoom(roomId, newState[roomId]);
     }
@@ -106,7 +106,7 @@ const availableMaps = [
 ];
 
 io.on('connection', (socket) => {
-  console.logента:', socket.id);
+  console.log('Подключение клиента:', socket.id); // ← ИСПРАВЛЕНО
   socket.on('get-available-maps', () => {
     socket.emit('available-maps', availableMaps);
   });
@@ -268,7 +268,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on () => {
+  socket.on('disconnect', async () => {
     const roomId = socket.roomId;
     if (roomId) {
       let room = await getRoom(roomId);
@@ -338,7 +338,7 @@ server.listen(PORT, () => {
 
 process.on('SIGINT', async () => {
   console.log('Сохраняем состояние перед завершением...');
-  // Сохранение всех комнат при завершении — необязательно, т.к. они уже в Redis
+  // Со при завершении — необязательно, т.к. они уже в Redis
   await redisClient.quit();
   process.exit(0);
 });
