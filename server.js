@@ -343,31 +343,3 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
-// === МИГРАЦИЯ СТАРЫХ ДАННЫХ ===
-async function migrateOldData() {
-  try {
-    const oldData = await redisClient.get('rooms');
-    if (!oldData) {
-      console.log('Старые данные отсутствуют, миграция не требуется');
-      return;
-    }
-
-    const rooms = JSON.parse(oldData);
-    console.log('Найдено комнат для миграции:', Object.keys(rooms).length);
-
-    for (const roomId in rooms) {
-      await redisClient.set(`room:${roomId}`, JSON.stringify(rooms[roomId]));
-      console.log(`Комната ${roomId} перенесена в room:${roomId}`);
-    }
-
-    // Удалить старый ключ (по желанию)
-    await redisClient.del('rooms');
-    console.log('Старый ключ "rooms" удалён');
-
-  } catch (e) {
-    console.error('Ошибка при миграции данных:', e);
-  }
-}
-
-// Запустить миграцию при старте
-migrateOldData();
