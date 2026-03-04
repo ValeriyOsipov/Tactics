@@ -440,12 +440,15 @@ document.addEventListener('mousemove', (e) => {
 
 document.addEventListener('mouseup', (e) => {
   if (isDragging && selectedObject) {
-    ripples.push(selectedObject.x, selectedObject.y));
+    // === СОЗДАЁМ RIPPLE ===
+    ripples.push(new Ripple(selectedObject.x, selectedObject.y));
 
     socket.emit('drag-end-effect', { x: selectedObject.x, y: selectedObject.y });
 
+    // === ОТПРАВЛЯЕМ НА СЕРВЕР ===
     socket.emit('update-object', { id: selectedObject.id, x: selectedObject.x, y: selectedObject.y });
 
+    // === ОБНОВЛЯЕМ У СЕБЯ ЛОКАЛЬНО ===
     const obj = objects.find(o => o.id === selectedObject.id);
     if (obj) {
       obj.x = selectedObject.x;
@@ -459,12 +462,14 @@ document.addEventListener('mouseup', (e) => {
   }
 
   if (!isDragging && draggedObj) {
+    // === УДАЛЕНИЕ ===
     const trashRect = trashcan.getBoundingClientRect();
     const mouseX = e.clientX;
     const mouseY = e.clientY;
 
     if (mouseX >= trashRect.left && mouseX <= trashRect.right &&
         mouseY >= trashRect.top && mouseY <= trashRect.bottom) {
+      // === УДАЛЯЕМ ОБЪЕКТ ===
       objects.splice(draggedObj.index, 1);
       allObjects[currentMap] = objects;
 
@@ -472,6 +477,7 @@ document.addEventListener('mouseup', (e) => {
 
       console.log('Объект удалён:', draggedObj.obj.id);
     } else {
+      // === ВОЗВРАТ НА МЕСТО ===
       draggedObj.obj.x = draggedObj.originalX;
       draggedObj.obj.y = draggedObj.originalY;
     }
@@ -738,6 +744,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
