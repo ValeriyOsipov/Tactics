@@ -188,7 +188,7 @@ socket.on('add-object', async (data) => {
 });
 
 socket.on('update-object', async (data) => {
-  console.log('Получено update-object:', data); // ← Лог
+  console.log('Получено update-object:', data);
 
   const roomId = socket.roomId;
   const map = socket.currentMap;
@@ -200,9 +200,10 @@ socket.on('update-object', async (data) => {
         obj.x = data.x;
         obj.y = data.y;
         if (data.label !== undefined) obj.label = data.label;
-        if (data.rotation !== undefined) obj.rotation = data.rotation; // ← НОВОЕ
+        if (data.rotation !== undefined) obj.rotation = data.rotation;
 
         socket.to(roomId).emit('object-updated', data);
+        socket.emit('object-updated', data);
 
         try {
           await saveRoom(roomId, room);
@@ -214,7 +215,7 @@ socket.on('update-object', async (data) => {
         console.log('Объект не найден при update-object:', data.id);
       }
     } else {
-      console.log('Комната или карта не найдены при update-object');
+        console.log('Комната или карта не найдены при update-object');
     }
   }
 });
@@ -378,6 +379,7 @@ async function clearUsersOnStartup() {
 }
 
 clearUsersOnStartup();
+
 
 
 
