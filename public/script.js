@@ -29,6 +29,30 @@ let currentRoomId = null;
 let currentUserName = null;
 let currentPassword = null;
 
+const trashcan = document.createElement('div');
+trashcan.id = 'trashcan';
+trashcan.innerHTML = '🗑️';
+trashcan.style = `
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 50px;
+  height: 50px;
+  background: red;
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 24px;
+  pointer-events: auto;
+`;
+document.body.appendChild(trashcan);
+
+let draggedObj = null;
+
 const shipRadii = {
   'Des Moines': 10,
   'Salem': 8.5,
@@ -131,7 +155,7 @@ class Ripple {
   }
 }
 
-function animate() {
+function drawObjects() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   if (bgLoaded) {
@@ -149,25 +173,33 @@ function animate() {
         console.warn(`Изображение ${obj.type}_${obj.color} ещё не загружено`);
         return;
       }
-      ctx.drawImage(img, obj.x - img.width / 2, obj.y - img.height / 2);
 
-      if (obj.label && shipRadii[obj.label]) {
-        const mapSizeKm = mapSizes[currentMap] || 42;
-        const radiusPx = (shipRadii[obj.label] / mapSizeKm) * canvas.width;
+      ctx.save();
+      ctx.translate(obj.x, obj.y);
 
-        ctx.beginPath();
-        ctx.arc(obj.x, obj.y, radiusPx, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(255, 255, 0, 0.5)';
-        ctx.lineWidth = 2;
-        ctx.stroke();
+      if (obj.rotation !== undefined && obj.rotation !== 0) {
+        const angle = obj.rotation * Math.PI / 4; // 45° in radians
+        ctx.rotate(angle);
       }
 
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+
       if (obj.label) {
+        ctx.restore();
         ctx.font = '12px Arial';
         ctx.fillStyle = 'yellow';
         ctx.textAlign = 'center';
         ctx.fillText(obj.label, obj.x, obj.y + img.height / 2 + 15);
+
+        ctx.save();
+        ctx.translate(obj.x, obj.y);
+        if (obj.rotation !== undefined && obj.rotation !== 0) {
+          const angle = obj.rotation * Math.PI / 4;
+          ctx.rotate(angle);
+        }
       }
+
+      ctx.restore();
     } else if (obj.type === 'note') {
       ctx.font = '14px Arial';
       ctx.fillStyle = 'rgba(255, 255, 200, 0.9)';
@@ -184,7 +216,10 @@ function animate() {
       ripples[i].draw(ctx);
     }
   }
+}
 
+function animate() {
+  drawObjects();
   requestAnimationFrame(animate);
 }
 
@@ -238,8 +273,8 @@ function loadBackground(map) {
 }
 
 function resizeCanvas() {
-  canvas.width = 600;
-  canvas.height = 600;
+  canvas.width = 900;
+  canvas.height = 900;
 }
 
 socket.on('wrong-password', () => {
@@ -270,6 +305,7 @@ socket.on('object-updated', (data) => {
     obj.x = data.x;
     obj.y = data.y;
     if (data.label !== undefined) obj.label = data.label;
+    if (data.rotation !== undefined) obj.rotation = data.rotation; // ← NEW
     allObjects[currentMap] = objects;
   }
 });
@@ -332,67 +368,101 @@ socket.on('click-effect', (data) => {
 
 canvas.oncontextmenu = (e) => {
   e.preventDefault();
-};
 
-canvas.onmousedown = (e) => {
-  if (e.button === 2) {
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
 
-    for (let i = objects.length - 1; i >= 0; i--) {
-      const obj = objects[i];
-      let inBounds = false;
+  for (let i = objects.length - 1; i >= 0; i--) {
+    const obj = objects[i];
+    let inBounds = false;
 
-      if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
-        const img = shipImages[obj.type][obj.color];
-        if (img && img.complete) {
-          inBounds = x >= obj.x - img.width / 2 && x <= obj.x + img.width / 2 &&
-                     y >= obj.y - img.height / 2 && y <= obj.y + img.height / 2;
-        }
-      } else if (obj.type === 'note') {
-        inBounds = x >= obj.x - 30 && x <= obj.x + 70 && y >= obj.y - 20 && y <= obj.y + 10;
-      }
-
-      if (inBounds) {
-        if (confirm('Удалить маркер?')) {
-          socket.emit('remove-object', { id: obj.id });
-          objects.splice(i, 1);
-          allObjects[currentMap] = objects;
-        }
-        return;
+    if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
+      const img = shipImages[obj.type][obj.color];
+      if (img && img.complete) {
+        inBounds = x >= obj.x - img.width / 2 && x <= obj.x + img.width / 2 &&
+                   y >= obj.y - img.height / 2 && y <= obj.y + img.height / 2;
       }
     }
-  } else {
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
 
-    for (let i = objects.length - 1; i >= 0; i--) {
-      const obj = objects[i];
-      let inBounds = false;
+    if (inBounds) {
+      obj.rotation = (obj.rotation || 0) + 1;
+      if (obj.rotation > 7) obj.rotation = 0;
+      allObjects[currentMap] = objects;
 
-      if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
-        const img = shipImages[obj.type][obj.color];
-        if (img && img.complete) {
-          inBounds = x >= obj.x - img.width / 2 && x <= obj.x + img.width / 2 &&
-                     y >= obj.y - img.height / 2 && y <= obj.y + img.height / 2;
-        }
-      } else if (obj.type === 'note') {
-        inBounds = x >= obj.x - 30 && x <= obj.x + 70 && y >= obj.y - 20 && y <= obj.y + 10;
-      }
+      socket.emit('update-object', {
+        id: obj.id,
+        x: obj.x,
+        y: obj.y,
+        rotation: obj.rotation
+      });
 
-      if (inBounds) {
-        selectedObject = obj;
-        offsetX = obj.x - x;
-        offsetY = obj.y - y;
-        isDragging = true;
-        canvas.style.cursor = 'grabbing';
-        break;
-      }
+      drawObjects();
+      return false;
     }
   }
 };
+
+canvas.onmousedown = (e) => {
+  if (e.button === 2) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  for (let i = objects.length - 1; i >= 0; i--) {
+    const obj = objects[i];
+    let inBounds = false;
+
+    if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
+      const img = shipImages[obj.type][obj.color];
+      if (img && img.complete) {
+        inBounds = x >= obj.x - img.width / 2 && x <= obj.x + img.width / 2 &&
+                   y >= obj.y - img.height / 2 && y <= obj.y + img.height / 2;
+      }
+    } else if (obj.type === 'note') {
+      inBounds = x >= obj.x - 30 && x <= obj.x + 70 && y >= obj.y - 20 && y <= obj.y + 10;
+    }
+
+    if (inBounds) {
+      draggedObj = { obj, originalX: obj.x, originalY: obj.y, index: i };
+      break;
+    }
+  }
+};
+
+document.addEventListener('mousemove', (e) => {
+  if (!draggedObj) return;
+
+  const rect = canvas.getBoundingClientRect();
+  draggedObj.obj.x = e.clientX - rect.left;
+  draggedObj.obj.y = e.clientY - rect.top;
+  drawObjects();
+});
+
+document.addEventListener('mouseup', (e) => {
+  if (!draggedObj) return;
+
+  const trashRect = trashcan.getBoundingClientRect();
+  const mouseX = e.clientX;
+  const mouseY = e.clientY;
+
+  if (mouseX >= trashRect.left && mouseX <= trashRect.right &&
+      mouseY >= trashRect.top && mouseY <= trashRect.bottom) {
+    objects.splice(draggedObj.index, 1);
+    allObjects[currentMap] = objects;
+
+    socket.emit('remove-object', { id: draggedObj.obj.id });
+
+    console.log('Объект удалён:', draggedObj.obj.id);
+  } else {
+    draggedObj.obj.x = draggedObj.originalX;
+    draggedObj.obj.y = draggedObj.originalY;
+  }
+
+  draggedObj = null;
+  drawObjects();
+});
 
 canvas.onmousemove = (e) => {
   if (!isDragging || !selectedObject) return;
@@ -455,8 +525,6 @@ canvas.ondblclick = (e) => {
 
         obj.label = newLabel;
         allObjects[currentMap] = objects;
-
-        socket.emit('update-object', { id: obj.id, x: obj.x, y: obj.y, label: obj.label });
       }
       return;
     }
@@ -493,7 +561,7 @@ canvas.addEventListener('drop', (e) => {
 
   socket.emit('drop-effect', { x, y });
 
-  const obj = { id, type, x, y, color, label: '' };
+  const obj = { id, type, x, y, color, label: '', rotation: 0 };
   objects.push(obj);
   allObjects[currentMap] = objects;
   socket.emit('add-object', obj);
@@ -640,28 +708,3 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
