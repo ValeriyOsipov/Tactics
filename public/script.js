@@ -227,7 +227,7 @@ socket.on('available-maps', (maps) => {
     img.crossOrigin = 'anonymous';
     img.src = `ships/${type}_${color}.svg`;
     img.onload = () => {
-      if (img.width != 40 || img.height != 40) {
+      if (img.width === 0 || img.height === 0) {
         img.width = 40;
         img.height = 40;
       }
@@ -283,7 +283,7 @@ socket.on('object-updated', (data) => {
     obj.x = data.x;
     obj.y = data.y;
     if (data.label !== undefined) obj.label = data.label;
-    if (data.rotation !== undefined) obj.rotation = data.rotation; // ← NEW
+    if (data.rotation !== undefined) obj.rotation = data.rotation;
     allObjects[currentMap] = objects;
   }
 });
@@ -404,8 +404,8 @@ canvas.onmousedown = (e) => {
 
     if (inBounds) {
       selectedObject = obj;
-      offsetX = obj.x - x;
-      offsetY = obj.y - y;
+      offsetX = obj.x - e.clientX;
+      offsetY = obj.y - e.clientY;
       isDragging = true;
       canvas.style.cursor = 'grabbing';
       break;
@@ -415,9 +415,8 @@ canvas.onmousedown = (e) => {
   
 document.addEventListener('mousemove', (e) => {
   if (isDragging && selectedObject) {
-    const rect = canvas.getBoundingClientRect();
-    selectedObject.x = e.clientX - rect.left + offsetX;
-    selectedObject.y = e.clientY - rect.top + offsetY;
+    selectedObject.x = e.clientX + offsetX;
+    selectedObject.y = e.clientY + offsetY;
     drawObjects();
   }
 });
@@ -720,5 +719,6 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
