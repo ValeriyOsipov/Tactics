@@ -29,28 +29,6 @@ let currentRoomId = null;
 let currentUserName = null;
 let currentPassword = null;
 
-const trashcan = document.createElement('div');
-trashcan.id = 'trashcan';
-trashcan.innerHTML = '🗑️';
-trashcan.style = `
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 50px;
-  height: 50px;
-  background: red;
-  border-radius: 50%;
-  cursor: pointer;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 24px;
-  pointer-events: auto;
-`;
-document.body.appendChild(trashcan);
-
 let draggedObj = null;
 
 const shipRadii = {
@@ -687,6 +665,29 @@ function addRadiusInfoTable() {
     table.appendChild(row);
   }
 
+const trashcan = document.createElement('div');
+trashcan.id = 'trashcan';
+trashcan.innerHTML = '🗑️';
+trashcan.style = `
+  position: absolute;
+  top: 10px;
+  left: calc(50% - 500px); /* ← Как ты указал */
+  width: 50px;
+  height: 50px;
+  background: red;
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 24px;
+  pointer-events: auto;
+`;
+
+  parent.appendChild(trashcan);
+  
   tableDiv.appendChild(table);
 
   parent.appendChild(tableDiv);
@@ -708,4 +709,5 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
