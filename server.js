@@ -11,8 +11,8 @@ const io = socketIo(server, {
     origin: "https://mk-tactics.ru", // исправлено
     methods: ["GET", "POST"]
   },
-  pingInterval: 5000,
-  pingTimeout: 3000
+  pingInterval: 20000,
+  pingTimeout: 10000
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -342,4 +342,5 @@ process.on('SIGINT', async () => {
   await redisClient.quit();
   process.exit(0);
 });
+
 
