@@ -134,7 +134,7 @@ io.on('connection', (socket) => {
         if (map.objects && Array.isArray(map.objects) && map.objects.length > 0) {
           currentMap = mapName;
           room.currentMap = mapName;
-          console.log(`Текущая карта изменена на: ${mapName}`);
+          console.log(`[ROOM: ${roomId}] Текущая карта изменена на: ${mapName}`);
           break;
         }
       }
@@ -160,9 +160,9 @@ io.on('connection', (socket) => {
 
     try {
       await saveRoom(roomId, room);
-      console.log('Состояние комнаты сохранено в Redis (join-room)');
+      console.log(`[ROOM: ${roomId}] Состояние комнаты сохранено в Redis (join-room)`);
     } catch (e) {
-      console.error('Ошибка при сохранении состояния в Redis (join-room):', e);
+      console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (join-room):`, e);
     }
   });
 
@@ -201,9 +201,9 @@ io.on('connection', (socket) => {
 
           try {
             await saveRoom(roomId, room);
-            console.log('Состояние комнаты сохранено в Redis (update-object)');
+            console.log(`[ROOM: ${roomId}] Состояние комнаты сохранено в Redis (update-object)`);
           } catch (e) {
-            console.error('Ошибка при сохранении состояния в Redis (update-object):', e);
+            console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (update-object):`, e);
           }
         }
       }
@@ -213,6 +213,7 @@ io.on('connection', (socket) => {
   socket.on('change-map', async (data) => {
     const roomId = socket.roomId;
     if (roomId) {
+      console.log(`[ROOM: ${roomId}] Смена карты на: ${data.map}`);
       let room = await getRoom(roomId);
       if (room) {
         if (!room.maps[data.map]) {
@@ -226,9 +227,9 @@ io.on('connection', (socket) => {
 
         try {
           await saveRoom(roomId, room);
-          console.log('Состояние комнаты сохранено в Redis (change-map)');
+          console.log(`[ROOM: ${roomId}] Состояние комнаты сохранено в Redis (change-map)`);
         } catch (e) {
-          console.error('Ошибка при сохранении состояния в Redis (change-map):', e);
+          console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (change-map):`, e);
         }
       }
     }
@@ -238,7 +239,7 @@ io.on('connection', (socket) => {
     const roomId = socket.roomId;
     if (roomId) {
       let room = await getRoom(roomId);
-      if (room && room.maps[data.map]) { // ← ИСПРАВЛЕНО
+      if (room && room.maps[data.map]) {
         socket.emit('map-objects', {
           map: data.map,
           objects: room.maps[data.map].objects
@@ -271,6 +272,7 @@ io.on('connection', (socket) => {
   socket.on('disconnect', async () => {
     const roomId = socket.roomId;
     if (roomId) {
+      console.log(`[ROOM: ${roomId}] Пользователь ${socket.id} отключился`);
       let room = await getRoom(roomId);
       if (room) {
         delete room.users[socket.id];
@@ -279,9 +281,9 @@ io.on('connection', (socket) => {
 
         try {
           await saveRoom(roomId, room);
-          console.log('Состояние комнаты сохранено в Redis (disconnect)');
+          console.log(`[ROOM: ${roomId}] Состояние комнаты сохранено в Redis (disconnect)`);
         } catch (e) {
-          console.error('Ошибка при сохранении состояния в Redis (disconnect):', e);
+          console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (disconnect):`, e);
         }
       }
     }
@@ -338,9 +340,33 @@ server.listen(PORT, () => {
 
 process.on('SIGINT', async () => {
   console.log('Сохраняем состояние перед завершением...');
-  // Со при завершении — необязательно, т.к. они уже в Redis
   await redisClient.quit();
   process.exit(0);
 });
 
+async function clearUsersOnStartup() {
+  try {
+    const roomKeys = await redisClient.keys('room:*');
+    if (roomKeys.length === 0) {
+      console.log('Комнаты не найдены, очистка не требуется');
+      return;
+    }
+
+    for (const key of roomKeys) {
+      const roomData = await redisClient.get(key);
+      if (roomData) {
+        let room = JSON.parse(roomData);
+        if (room.users) {
+          room.users = {};
+          await redisClient.set(key, JSON.stringify(room));
+          console.log(`Пользователи в комнате ${key.replace('room:', '')} очищены`);
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Ошибка при очистке пользователей:', e);
+  }
+}
+
+clearUsersOnStartup();
 
