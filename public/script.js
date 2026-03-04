@@ -160,7 +160,7 @@ function drawObjects() {
         ctx.rotate(angle);
       }
 
-      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+      ctx.drawImage(img, -img.width / 1.5, -img.height / 1.5);
 
       if (obj.label) {
         ctx.restore();
@@ -358,8 +358,8 @@ canvas.oncontextmenu = (e) => {
     if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
       const img = shipImages[obj.type][obj.color];
       if (img && img.complete) {
-        inBounds = x >= obj.x - img.width / 2 && x <= obj.x + img.width / 2 &&
-                   y >= obj.y - img.height / 2 && y <= obj.y + img.height / 2;
+        inBounds = x >= obj.x - img.width / 1.5 && x <= obj.x + img.width / 1.5 &&
+                   y >= obj.y - img.height / 1.5 && y <= obj.y + img.height / 1.5;
       }
     }
 
@@ -426,25 +426,12 @@ document.addEventListener('mousemove', (e) => {
 
 document.addEventListener('mouseup', (e) => {
   if (isDragging && selectedObject) {
-    ripples.push(new Ripple(selectedObject.x, selectedObject.y));
-
-    socket.emit('drag-end-effect', { x: selectedObject.x, y: selectedObject.y });
-
-    socket.emit('update-object', { id: selectedObject.id, x: selectedObject.x, y: selectedObject.y });
-
-    isDragging = false;
-    selectedObject = null;
-    canvas.style.cursor = 'default';
-  }
-
-  if (selectedObject) {
     const trashRect = trashcan.getBoundingClientRect();
     const mouseX = e.clientX;
     const mouseY = e.clientY;
 
     if (mouseX >= trashRect.left && mouseX <= trashRect.right &&
         mouseY >= trashRect.top && mouseY <= trashRect.bottom) {
-      // === УДАЛЯЕМ ОБЪЕКТ ===
       const index = objects.findIndex(o => o.id === selectedObject.id);
       if (index !== -1) {
         objects.splice(index, 1);
@@ -454,8 +441,23 @@ document.addEventListener('mouseup', (e) => {
 
         console.log('Объект удалён:', selectedObject.id);
       }
+
+      isDragging = false;
+      selectedObject = null;
+      canvas.style.cursor = 'default';
+      return;
     }
+
+    ripples.push(new Ripple(selectedObject.x, selectedObject.y));
+
+    socket.emit('drag-end-effect', { x: selectedObject.x, y: selectedObject.y });
+
+    socket.emit('update-object', { id: selectedObject.id, x: selectedObject.x, y: selectedObject.y });
   }
+
+  isDragging = false;
+  selectedObject = null;
+  canvas.style.cursor = 'default';
 });
 
 canvas.onmousemove = (e) => {
@@ -687,7 +689,7 @@ trashcan.innerHTML = '🗑️';
 trashcan.style = `
   position: absolute;
   top: 10px;
-  left: calc(50% + 600px);
+  left: calc(50% + 500px);
   width: 80px;
   height: 80px;
   background: white;
@@ -725,3 +727,4 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
