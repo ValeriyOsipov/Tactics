@@ -160,7 +160,7 @@ function drawObjects() {
         ctx.rotate(angle);
       }
 
-      ctx.drawImage(img, -img.width / 1.5, -img.height / 1.5);
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
 
       if (obj.label) {
         ctx.restore();
@@ -227,9 +227,9 @@ socket.on('available-maps', (maps) => {
     img.crossOrigin = 'anonymous';
     img.src = `ships/${type}_${color}.svg`;
     img.onload = () => {
-      if (img.width === 0 || img.height === 0) {
-        img.width = 60;
-        img.height = 60;
+      if (img.width != 40 || img.height != 40) {
+        img.width = 40;
+        img.height = 40;
       }
     };
     img.onerror = () => {
@@ -358,8 +358,8 @@ canvas.oncontextmenu = (e) => {
     if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
       const img = shipImages[obj.type][obj.color];
       if (img && img.complete) {
-        inBounds = x >= obj.x - img.width / 1.5 && x <= obj.x + img.width / 1.5 &&
-                   y >= obj.y - img.height / 1.5 && y <= obj.y + img.height / 1.5;
+        inBounds = x >= obj.x - img.width / 2 && x <= obj.x + img.width / 2 &&
+                   y >= obj.y - img.height / 2 && y <= obj.y + img.height / 2;
       }
     }
 
@@ -403,7 +403,6 @@ canvas.onmousedown = (e) => {
     }
 
     if (inBounds) {
-      // === ОПРЕДЕЛЯЕМ, ЧТО ПЕРЕМЕЩАЕМ ===
       selectedObject = obj;
       offsetX = obj.x - x;
       offsetY = obj.y - y;
@@ -413,7 +412,6 @@ canvas.onmousedown = (e) => {
     }
   }
 };
-
   
 document.addEventListener('mousemove', (e) => {
   if (isDragging && selectedObject) {
@@ -441,23 +439,18 @@ document.addEventListener('mouseup', (e) => {
 
         console.log('Объект удалён:', selectedObject.id);
       }
+    } else {
+      ripples.push(new Ripple(selectedObject.x, selectedObject.y));
 
-      isDragging = false;
-      selectedObject = null;
-      canvas.style.cursor = 'default';
-      return;
+      socket.emit('drag-end-effect', { x: selectedObject.x, y: selectedObject.y });
+
+      socket.emit('update-object', { id: selectedObject.id, x: selectedObject.x, y: selectedObject.y });
     }
 
-    ripples.push(new Ripple(selectedObject.x, selectedObject.y));
-
-    socket.emit('drag-end-effect', { x: selectedObject.x, y: selectedObject.y });
-
-    socket.emit('update-object', { id: selectedObject.id, x: selectedObject.x, y: selectedObject.y });
+    isDragging = false;
+    selectedObject = null;
+    canvas.style.cursor = 'default';
   }
-
-  isDragging = false;
-  selectedObject = null;
-  canvas.style.cursor = 'default';
 });
 
 canvas.onmousemove = (e) => {
@@ -727,4 +720,5 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
