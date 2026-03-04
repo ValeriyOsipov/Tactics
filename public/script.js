@@ -448,6 +448,13 @@ document.addEventListener('mouseup', (e) => {
 
     socket.emit('update-object', { id: selectedObject.id, x: selectedObject.x, y: selectedObject.y });
 
+    const objInObjects = objects.find(o => o.id === selectedObject.id);
+    if (objInObjects) {
+      objInObjects.x = selectedObject.x;
+      objInObjects.y = selectedObject.y;
+      allObjects[currentMap] = objects;
+    }
+
     isDragging = false;
     selectedObject = null;
     canvas.style.cursor = 'default';
@@ -733,4 +740,5 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
