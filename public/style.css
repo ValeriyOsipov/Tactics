@@ -79,8 +79,8 @@ body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 600px;
-  height: 600px;
+  width: 900px;
+  height: 900px;
   border: 2px solid #000;
   background-size: cover;
   cursor: default;
@@ -103,4 +103,5 @@ body {
   cursor: grab;
   display: inline-block;
 }
+
 
