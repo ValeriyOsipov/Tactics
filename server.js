@@ -95,7 +95,7 @@ app.post('/admin/load-redis', express.json({ limit: '50mb' }), async (req, res) 
 });
 
 const availableMaps = [
-  'Греция.jpeg',
+  'Греция.png',
   'Ледяные острова.png',
   'Огненная земля.png',
   'Петля.png',
@@ -117,7 +117,7 @@ io.on('connection', (socket) => {
     let room = await getRoom(roomId);
 
     if (!room) {
-      room = { maps: {}, users: {}, currentMap: 'Греция.jpeg', password: password || '' };
+      room = { maps: {}, users: {}, currentMap: 'Греция.png', password: password || '' };
       console.log(`Комната создана: ${roomId}`);
     } else {
       if (room.password && room.password !== password) {
@@ -378,5 +378,6 @@ async function clearUsersOnStartup() {
 }
 
 clearUsersOnStartup();
+
 
 
