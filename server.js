@@ -203,7 +203,6 @@ socket.on('update-object', async (data) => {
         if (data.rotation !== undefined) obj.rotation = data.rotation;
 
         socket.to(roomId).emit('object-updated', data);
-        socket.emit('object-updated', data);
 
         try {
           await saveRoom(roomId, room);
@@ -215,7 +214,7 @@ socket.on('update-object', async (data) => {
         console.log('Объект не найден при update-object:', data.id);
       }
     } else {
-        console.log('Комната или карта не найдены при update-object');
+      console.log('Комната или карта не найдены при update-object');
     }
   }
 });
@@ -379,6 +378,7 @@ async function clearUsersOnStartup() {
 }
 
 clearUsersOnStartup();
+
 
 
 
