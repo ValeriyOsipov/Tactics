@@ -160,14 +160,7 @@ function drawObjects() {
         ctx.rotate(angle);
       }
 
-      const scale = 1.5
-      ctx.drawImage(
-        img,
-        obj.x - (img.width * scale) / 2,
-        obj.y - (img.height * scale) / 2,
-        img.width * scale,
-        img.height * scale
-      );
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
 
       if (obj.label) {
         ctx.restore();
@@ -233,12 +226,15 @@ socket.on('available-maps', (maps) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.src = `ships/${type}_${color}.svg`;
-    img.onload = () => {
-      if (img.width === 0 || img.height === 0) {
-        img.width = 40;
-        img.height = 40;
-      }
-    };
+img.onload = () => {
+  if (img.width === 0 || img.height === 0) {
+    img.width = 45;
+    img.height = 45;
+  } else {
+    img.width = 45;
+    img.height = 45;
+  }
+};
     img.onerror = () => {
       console.error(`Ошибка загрузки ${type}_${color}.svg`);
     };
@@ -388,6 +384,7 @@ canvas.oncontextmenu = (e) => {
   }
 };
 
+// === ОБЪЕДИНЁННЫЙ DRAG-AND-DROP ===
 canvas.onmousedown = (e) => {
   if (e.button === 2) return;
 
@@ -410,19 +407,21 @@ canvas.onmousedown = (e) => {
     }
 
     if (inBounds) {
+      // === ОБЫЧНЫЙ DRAG ===
       selectedObject = obj;
       offsetX = obj.x - x;
       offsetY = obj.y - y;
       isDragging = true;
       canvas.style.cursor = 'grabbing';
 
+      // === УДАЛЕНИЕ ===
       draggedObj = { obj, originalX: obj.x, originalY: obj.y, index: i };
 
       break;
     }
   }
 };
-  
+
 document.addEventListener('mousemove', (e) => {
   if (isDragging && selectedObject) {
     const rect = canvas.getBoundingClientRect();
@@ -432,6 +431,7 @@ document.addEventListener('mousemove', (e) => {
   }
 
   if (!isDragging && draggedObj) {
+    // === ДВИЖЕНИЕ ДЛЯ УДАЛЕНИЯ ===
     const rect = canvas.getBoundingClientRect();
     draggedObj.obj.x = e.clientX - rect.left;
     draggedObj.obj.y = e.clientY - rect.top;
@@ -454,12 +454,14 @@ document.addEventListener('mouseup', (e) => {
   }
 
   if (!isDragging && draggedObj) {
+    // === УДАЛЕНИЕ ===
     const trashRect = trashcan.getBoundingClientRect();
     const mouseX = e.clientX;
     const mouseY = e.clientY;
 
     if (mouseX >= trashRect.left && mouseX <= trashRect.right &&
         mouseY >= trashRect.top && mouseY <= trashRect.bottom) {
+      // === УДАЛЯЕМ ОБЪЕКТ ===
       objects.splice(draggedObj.index, 1);
       allObjects[currentMap] = objects;
 
@@ -467,6 +469,7 @@ document.addEventListener('mouseup', (e) => {
 
       console.log('Объект удалён:', draggedObj.obj.id);
     } else {
+      // === ВОЗВРАТ НА МЕСТО ===
       draggedObj.obj.x = draggedObj.originalX;
       draggedObj.obj.y = draggedObj.originalY;
     }
@@ -477,27 +480,11 @@ document.addEventListener('mouseup', (e) => {
 });
 
 canvas.onmousemove = (e) => {
-  if (!isDragging || !selectedObject) return;
-
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-
-  selectedObject.x = x + offsetX;
-  selectedObject.y = y + offsetY;
+  // Не используется — обработка в document.addEventListener('mousemove')
 };
 
 canvas.onmouseup = () => {
-  if (isDragging && selectedObject) {
-    ripples.push(new Ripple(selectedObject.x, selectedObject.y));
-
-    socket.emit('drag-end-effect', { x: selectedObject.x, y: selectedObject.y });
-
-    socket.emit('update-object', { id: selectedObject.id, x: selectedObject.x, y: selectedObject.y });
-  }
-  isDragging = false;
-  selectedObject = null;
-  canvas.style.cursor = 'default';
+  // Не используется — обработка в document.addEventListener('mouseup')
 };
 
 socket.on('drag-end-effect', (data) => {
@@ -537,6 +524,14 @@ canvas.ondblclick = (e) => {
 
         obj.label = newLabel;
         allObjects[currentMap] = objects;
+
+        if (socket.connected) {
+          socket.emit('update-object', { id: obj.id, x: obj.x, y: obj.y, label: obj.label });
+          console.log('[DEBUG] update-object отправлен:', obj.label);
+        } else {
+          console.warn('Соединение с сервером потеряно, обновление не отправлено:', obj.label);
+          alert('Соединение с сервером потеряно. Подпись не обновлена.');
+        }
       }
       return;
     }
@@ -699,26 +694,26 @@ function addRadiusInfoTable() {
     table.appendChild(row);
   }
 
-const trashcan = document.createElement('div');
-trashcan.id = 'trashcan';
-trashcan.innerHTML = '🗑️';
-trashcan.style = `
-  position: absolute;
-  top: 10px;
-  left: calc(50% + 500px);
-  width: 80px;
-  height: 80px;
-  background: white;
-  border-radius: 50%;
-  cursor: pointer;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 24px;
-  pointer-events: auto;
-`;
+  const trashcan = document.createElement('div');
+  trashcan.id = 'trashcan';
+  trashcan.innerHTML = '🗑️';
+  trashcan.style = `
+    position: absolute;
+    top: 10px;
+    left: calc(50% - 500px);
+    width: 80px;
+    height: 80px;
+    background: white;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 24px;
+    pointer-events: auto;
+  `;
 
   parent.appendChild(trashcan);
   
@@ -743,7 +738,3 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
-
-
-
-
