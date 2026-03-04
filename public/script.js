@@ -472,7 +472,10 @@ document.addEventListener('mouseup', (e) => {
 
       socket.emit('remove-object', { id: draggedObj.obj.id });
 
-      console.log('Объект удалён:', draggedObj.obj.id);
+      console.log('Объект удалён:', draggedObj.obj.id);}
+      draggedObj = null;
+      drawObjects();
+  }
 });
 
 canvas.onmousemove = (e) => {
@@ -732,6 +735,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
