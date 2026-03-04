@@ -228,8 +228,8 @@ socket.on('available-maps', (maps) => {
     img.src = `ships/${type}_${color}.svg`;
     img.onload = () => {
       if (img.width === 0 || img.height === 0) {
-        img.width = 30;
-        img.height = 30;
+        img.width = 45;
+        img.height = 45;
       }
     };
     img.onerror = () => {
@@ -709,6 +709,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
