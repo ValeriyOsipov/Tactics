@@ -81,7 +81,7 @@ app.post('/admin/load-redis', express.json({ limit: '50mb' }), async (req, res) 
 
     console.log('Новое состояние (после преобразования):', JSON.stringify(newState).substring(0, 100) + '...');
 
-    // === СОХРАНИТЬ КАЖДУЮ КОМНАТУ ОТДЕЛЬНО ===
+    // === СОХРАНИТЬ КАЖДУЮ КОМНАДЕЛЬНО ===
     for (const roomId in newState) {
       await saveRoom(roomId, newState[roomId]);
     }
@@ -106,7 +106,7 @@ const availableMaps = [
 ];
 
 io.on('connection', (socket) => {
-  console.log('Подключение клиента:', socket.id);
+  console.logента:', socket.id);
   socket.on('get-available-maps', () => {
     socket.emit('available-maps', availableMaps);
   });
@@ -238,7 +238,7 @@ io.on('connection', (socket) => {
     const roomId = socket.roomId;
     if (roomId) {
       let room = await getRoom(roomId);
-      if.maps[data.map]) {
+      if (room && room.maps[data.map]) { // ← ИСПРАВЛЕНО
         socket.emit('map-objects', {
           map: data.map,
           objects: room.maps[data.map].objects
@@ -268,7 +268,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('disconnect', async () => {
+  socket.on () => {
     const roomId = socket.roomId;
     if (roomId) {
       let room = await getRoom(roomId);
