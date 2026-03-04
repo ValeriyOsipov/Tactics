@@ -160,7 +160,14 @@ function drawObjects() {
         ctx.rotate(angle);
       }
 
-      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+      const scale = 1.5
+      ctx.drawImage(
+        img,
+        obj.x - (img.width * scale) / 2,
+        obj.y - (img.height * scale) / 2,
+        img.width * scale,
+        img.height * scale
+      );
 
       if (obj.label) {
         ctx.restore();
@@ -404,10 +411,13 @@ canvas.onmousedown = (e) => {
 
     if (inBounds) {
       selectedObject = obj;
-      offsetX = obj.x - e.clientX;
-      offsetY = obj.y - e.clientY;
+      offsetX = obj.x - x;
+      offsetY = obj.y - y;
       isDragging = true;
       canvas.style.cursor = 'grabbing';
+
+      draggedObj = { obj, originalX: obj.x, originalY: obj.y, index: i };
+
       break;
     }
   }
@@ -415,40 +425,54 @@ canvas.onmousedown = (e) => {
   
 document.addEventListener('mousemove', (e) => {
   if (isDragging && selectedObject) {
-    selectedObject.x = e.clientX + offsetX;
-    selectedObject.y = e.clientY + offsetY;
+    const rect = canvas.getBoundingClientRect();
+    selectedObject.x = e.clientX - rect.left + offsetX;
+    selectedObject.y = e.clientY - rect.top + offsetY;
+    drawObjects();
+  }
+
+  if (!isDragging && draggedObj) {
+    const rect = canvas.getBoundingClientRect();
+    draggedObj.obj.x = e.clientX - rect.left;
+    draggedObj.obj.y = e.clientY - rect.top;
     drawObjects();
   }
 });
 
 document.addEventListener('mouseup', (e) => {
   if (isDragging && selectedObject) {
+    // === ОБЫЧНОЕ ПЕРЕМЕЩЕНИЕ ===
+    ripples.push(new Ripple(selectedObject.x, selectedObject.y));
+
+    socket.emit('drag-end-effect', { x: selectedObject.x, y: selectedObject.y });
+
+    socket.emit('update-object', { id: selectedObject.id, x: selectedObject.x, y: selectedObject.y });
+
+    isDragging = false;
+    selectedObject = null;
+    canvas.style.cursor = 'default';
+  }
+
+  if (!isDragging && draggedObj) {
     const trashRect = trashcan.getBoundingClientRect();
     const mouseX = e.clientX;
     const mouseY = e.clientY;
 
     if (mouseX >= trashRect.left && mouseX <= trashRect.right &&
         mouseY >= trashRect.top && mouseY <= trashRect.bottom) {
-      const index = objects.findIndex(o => o.id === selectedObject.id);
-      if (index !== -1) {
-        objects.splice(index, 1);
-        allObjects[currentMap] = objects;
+      objects.splice(draggedObj.index, 1);
+      allObjects[currentMap] = objects;
 
-        socket.emit('remove-object', { id: selectedObject.id });
+      socket.emit('remove-object', { id: draggedObj.obj.id });
 
-        console.log('Объект удалён:', selectedObject.id);
-      }
+      console.log('Объект удалён:', draggedObj.obj.id);
     } else {
-      ripples.push(new Ripple(selectedObject.x, selectedObject.y));
-
-      socket.emit('drag-end-effect', { x: selectedObject.x, y: selectedObject.y });
-
-      socket.emit('update-object', { id: selectedObject.id, x: selectedObject.x, y: selectedObject.y });
+      draggedObj.obj.x = draggedObj.originalX;
+      draggedObj.obj.y = draggedObj.originalY;
     }
 
-    isDragging = false;
-    selectedObject = null;
-    canvas.style.cursor = 'default';
+    draggedObj = null;
+    drawObjects();
   }
 });
 
@@ -719,6 +743,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
