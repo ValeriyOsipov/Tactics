@@ -473,6 +473,12 @@ document.addEventListener('mouseup', (e) => {
       socket.emit('remove-object', { id: draggedObj.obj.id });
 
       console.log('Объект удалён:', draggedObj.obj.id);}
+    else {
+      if (draggedObj.obj.x <= 0 || draggedObj.obj.y <=0 || draggedObj.obj.x => 900 || draggedObj.obj.y >= 900) {
+        draggedObj.obj.x = draggedObj.originalX;
+        draggedObj.obj.y = draggedObj.originalY;
+      }
+    }
       draggedObj = null;
       drawObjects();
   }
@@ -735,6 +741,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
