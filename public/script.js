@@ -671,10 +671,10 @@ trashcan.innerHTML = '🗑️';
 trashcan.style = `
   position: absolute;
   top: 10px;
-  left: calc(50% - 500px); /* ← Как ты указал */
-  width: 50px;
-  height: 50px;
-  background: red;
+  left: calc(50% - 600px);
+  width: 80px;
+  height: 80px;
+  background: white;
   border-radius: 50%;
   cursor: pointer;
   z-index: 100;
@@ -709,5 +709,6 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
