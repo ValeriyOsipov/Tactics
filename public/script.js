@@ -156,7 +156,7 @@ function drawObjects() {
       ctx.translate(obj.x, obj.y);
 
       if (obj.rotation !== undefined && obj.rotation !== 0) {
-        const angle = obj.rotation * Math.PI / 4; // 45° in radians
+        const angle = obj.rotation * Math.PI / 4;
         ctx.rotate(angle);
       }
 
@@ -228,8 +228,8 @@ socket.on('available-maps', (maps) => {
     img.src = `ships/${type}_${color}.svg`;
     img.onload = () => {
       if (img.width === 0 || img.height === 0) {
-        img.width = 45;
-        img.height = 45;
+        img.width = 60;
+        img.height = 60;
       }
     };
     img.onerror = () => {
@@ -403,6 +403,7 @@ canvas.onmousedown = (e) => {
     }
 
     if (inBounds) {
+      // === ОПРЕДЕЛЯЕМ, ЧТО ПЕРЕМЕЩАЕМ ===
       selectedObject = obj;
       offsetX = obj.x - x;
       offsetY = obj.y - y;
@@ -411,40 +412,14 @@ canvas.onmousedown = (e) => {
       break;
     }
   }
-
-  for (let i = objects.length - 1; i >= 0; i--) {
-    const obj = objects[i];
-    let inBounds = false;
-
-    if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
-      const img = shipImages[obj.type][obj.color];
-      if (img && img.complete) {
-        inBounds = x >= obj.x - img.width / 2 && x <= obj.x + img.width / 2 &&
-                   y >= obj.y - img.height / 2 && y <= obj.y + img.height / 2;
-      }
-    } else if (obj.type === 'note') {
-      inBounds = x >= obj.x - 30 && x <= obj.x + 70 && y >= obj.y - 20 && y <= obj.y + 10;
-    }
-
-    if (inBounds) {
-      draggedObj = { obj, originalX: obj.x, originalY: obj.y, index: i };
-      break;
-    }
-  }
 };
+
   
 document.addEventListener('mousemove', (e) => {
   if (isDragging && selectedObject) {
     const rect = canvas.getBoundingClientRect();
     selectedObject.x = e.clientX - rect.left + offsetX;
     selectedObject.y = e.clientY - rect.top + offsetY;
-    drawObjects();
-  }
-
-  if (!isDragging && draggedObj) {
-    const rect = canvas.getBoundingClientRect();
-    draggedObj.obj.x = e.clientX - rect.left;
-    draggedObj.obj.y = e.clientY - rect.top;
     drawObjects();
   }
 });
@@ -462,26 +437,24 @@ document.addEventListener('mouseup', (e) => {
     canvas.style.cursor = 'default';
   }
 
-  if (!isDragging && draggedObj) {
+  if (selectedObject) {
     const trashRect = trashcan.getBoundingClientRect();
     const mouseX = e.clientX;
     const mouseY = e.clientY;
 
     if (mouseX >= trashRect.left && mouseX <= trashRect.right &&
         mouseY >= trashRect.top && mouseY <= trashRect.bottom) {
-      objects.splice(draggedObj.index, 1);
-      allObjects[currentMap] = objects;
+      // === УДАЛЯЕМ ОБЪЕКТ ===
+      const index = objects.findIndex(o => o.id === selectedObject.id);
+      if (index !== -1) {
+        objects.splice(index, 1);
+        allObjects[currentMap] = objects;
 
-      socket.emit('remove-object', { id: draggedObj.obj.id });
+        socket.emit('remove-object', { id: selectedObject.id });
 
-      console.log('Объект удалён:', draggedObj.obj.id);
-    } else {
-      draggedObj.obj.x = draggedObj.originalX;
-      draggedObj.obj.y = draggedObj.originalY;
+        console.log('Объект удалён:', selectedObject.id);
+      }
     }
-
-    draggedObj = null;
-    drawObjects();
   }
 });
 
@@ -714,7 +687,7 @@ trashcan.innerHTML = '🗑️';
 trashcan.style = `
   position: absolute;
   top: 10px;
-  left: calc(50% - 600px);
+  left: calc(50% + 600px);
   width: 80px;
   height: 80px;
   background: white;
@@ -752,8 +725,3 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
-
-
-
-
-
