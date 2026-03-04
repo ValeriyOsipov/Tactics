@@ -440,18 +440,16 @@ document.addEventListener('mousemove', (e) => {
 
 document.addEventListener('mouseup', (e) => {
   if (isDragging && selectedObject) {
-    allObjects[currentMap] = objects;
-
-    ripples.push(new Ripple(selectedObject.x, selectedObject.y));
+    ripples.push(selectedObject.x, selectedObject.y));
 
     socket.emit('drag-end-effect', { x: selectedObject.x, y: selectedObject.y });
 
     socket.emit('update-object', { id: selectedObject.id, x: selectedObject.x, y: selectedObject.y });
 
-    const objInObjects = objects.find(o => o.id === selectedObject.id);
-    if (objInObjects) {
-      objInObjects.x = selectedObject.x;
-      objInObjects.y = selectedObject.y;
+    const obj = objects.find(o => o.id === selectedObject.id);
+    if (obj) {
+      obj.x = selectedObject.x;
+      obj.y = selectedObject.y;
       allObjects[currentMap] = objects;
     }
 
@@ -740,5 +738,6 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
