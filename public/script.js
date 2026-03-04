@@ -403,43 +403,86 @@ canvas.onmousedown = (e) => {
     }
 
     if (inBounds) {
+      selectedObject = obj;
+      offsetX = obj.x - x;
+      offsetY = obj.y - y;
+      isDragging = true;
+      canvas.style.cursor = 'grabbing';
+      break;
+    }
+  }
+
+  for (let i = objects.length - 1; i >= 0; i--) {
+    const obj = objects[i];
+    let inBounds = false;
+
+    if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
+      const img = shipImages[obj.type][obj.color];
+      if (img && img.complete) {
+        inBounds = x >= obj.x - img.width / 2 && x <= obj.x + img.width / 2 &&
+                   y >= obj.y - img.height / 2 && y <= obj.y + img.height / 2;
+      }
+    } else if (obj.type === 'note') {
+      inBounds = x >= obj.x - 30 && x <= obj.x + 70 && y >= obj.y - 20 && y <= obj.y + 10;
+    }
+
+    if (inBounds) {
       draggedObj = { obj, originalX: obj.x, originalY: obj.y, index: i };
       break;
     }
   }
 };
-
+  
 document.addEventListener('mousemove', (e) => {
-  if (!draggedObj) return;
+  if (isDragging && selectedObject) {
+    const rect = canvas.getBoundingClientRect();
+    selectedObject.x = e.clientX - rect.left + offsetX;
+    selectedObject.y = e.clientY - rect.top + offsetY;
+    drawObjects();
+  }
 
-  const rect = canvas.getBoundingClientRect();
-  draggedObj.obj.x = e.clientX - rect.left;
-  draggedObj.obj.y = e.clientY - rect.top;
-  drawObjects();
+  if (!isDragging && draggedObj) {
+    const rect = canvas.getBoundingClientRect();
+    draggedObj.obj.x = e.clientX - rect.left;
+    draggedObj.obj.y = e.clientY - rect.top;
+    drawObjects();
+  }
 });
 
 document.addEventListener('mouseup', (e) => {
-  if (!draggedObj) return;
+  if (isDragging && selectedObject) {
+    ripples.push(new Ripple(selectedObject.x, selectedObject.y));
 
-  const trashRect = trashcan.getBoundingClientRect();
-  const mouseX = e.clientX;
-  const mouseY = e.clientY;
+    socket.emit('drag-end-effect', { x: selectedObject.x, y: selectedObject.y });
 
-  if (mouseX >= trashRect.left && mouseX <= trashRect.right &&
-      mouseY >= trashRect.top && mouseY <= trashRect.bottom) {
-    objects.splice(draggedObj.index, 1);
-    allObjects[currentMap] = objects;
+    socket.emit('update-object', { id: selectedObject.id, x: selectedObject.x, y: selectedObject.y });
 
-    socket.emit('remove-object', { id: draggedObj.obj.id });
-
-    console.log('Объект удалён:', draggedObj.obj.id);
-  } else {
-    draggedObj.obj.x = draggedObj.originalX;
-    draggedObj.obj.y = draggedObj.originalY;
+    isDragging = false;
+    selectedObject = null;
+    canvas.style.cursor = 'default';
   }
 
-  draggedObj = null;
-  drawObjects();
+  if (!isDragging && draggedObj) {
+    const trashRect = trashcan.getBoundingClientRect();
+    const mouseX = e.clientX;
+    const mouseY = e.clientY;
+
+    if (mouseX >= trashRect.left && mouseX <= trashRect.right &&
+        mouseY >= trashRect.top && mouseY <= trashRect.bottom) {
+      objects.splice(draggedObj.index, 1);
+      allObjects[currentMap] = objects;
+
+      socket.emit('remove-object', { id: draggedObj.obj.id });
+
+      console.log('Объект удалён:', draggedObj.obj.id);
+    } else {
+      draggedObj.obj.x = draggedObj.originalX;
+      draggedObj.obj.y = draggedObj.originalY;
+    }
+
+    draggedObj = null;
+    drawObjects();
+  }
 });
 
 canvas.onmousemove = (e) => {
@@ -709,6 +752,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
