@@ -19,7 +19,7 @@ const usersList = document.getElementById('users-list');
 const shipsPanel = document.getElementById('ships-panel');
 
 let allObjects = {};
-let currentMap = 'Греция.jpeg';
+let currentMap = 'Греция.png';
 let objects = [];
 let selectedObject = null;
 let offsetX, offsetY;
@@ -76,7 +76,7 @@ const shipRadii = {
 };
 
 const mapSizes = {
-  'Греция.jpeg': 42,
+  'Греция.png': 42,
   'Ледяные острова.png': 42,
   'Огненная земля.png': 48,
   'Петля.png': 48,
@@ -239,7 +239,7 @@ socket.on('available-maps', (maps) => {
     option.textContent = map;
     mapSelect.appendChild(option);
   });
-  mapSelect.value = 'Греция.jpeg';
+  mapSelect.value = 'Греция.png';
 });
 
 ['lk', 'kr', 'es'].forEach(type => {
@@ -633,7 +633,7 @@ function addRadiusInfoTable() {
   tableDiv.style.position = 'absolute';
   tableDiv.style.top = '50%';
   tableDiv.style.transform = 'translateY(-50%)';
-  tableDiv.style.left = 'calc(50% + 350px)';
+  tableDiv.style.left = 'calc(50% + 500px)';
   tableDiv.style.width = '220px';
   tableDiv.style.background = 'rgba(0, 0, 0, 0.7)';
   tableDiv.style.color = 'white';
@@ -708,3 +708,4 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
