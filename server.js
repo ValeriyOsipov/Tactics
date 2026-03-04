@@ -312,7 +312,7 @@ socket.on('update-object', async (data) => {
 
           try {
             await saveRoom(roomId, room);
-            console.log('Объект удалён и состояние сохранено в Redis');
+            console.log(`[ROOM: ${roomId}] Объект удалён и состояние сохранено в Redis`);
           } catch (e) {
             console.error('Ошибка при сохранении в Redis:', e);
           }
@@ -378,6 +378,7 @@ async function clearUsersOnStartup() {
 }
 
 clearUsersOnStartup();
+
 
 
 
