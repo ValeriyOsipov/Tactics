@@ -143,7 +143,7 @@ function drawObjects() {
   objects.forEach(obj => {
     if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
       const img = shipImages[obj.type][obj.color];
-      if (!img) {
+) {
         console.error(`Изображение не найдено для ${obj.type}_${obj.color}`);
         return;
       }
@@ -161,6 +161,18 @@ function drawObjects() {
       }
 
       ctx.drawImage(img, -img.width / 2, -img.height / 2);
+
+      // === РИСУЕМ РАДИУС ===
+      if (obj.label && shipRadii[obj.label]) {
+        const mapSizeKm = mapSizes[currentMap] || 42;
+        const radiusPx = (shipRadii[obj.label] / mapSizeKm) * canvas.width;
+
+        ctx.beginPath();
+        ctx.arc(0, 0, radiusPx, 0, Math.PI * 2); // ← (0,0) — потому что translate
+        ctx.strokeStyle = 'rgba(255, 255, 0, 0.5)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
 
       if (obj.label) {
         ctx.restore();
@@ -741,6 +753,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
