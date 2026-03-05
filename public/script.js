@@ -147,80 +147,50 @@ function drawObjects() {
 
   objects.forEach(obj => {
     if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
-    } else if (obj.type === 'note') {
-    } else if (obj.type.startsWith('vector-')) {
-      ctx.beginPath();
-      ctx.moveTo(obj.startX, obj.startY);
-      ctx.lineTo(obj.endX, obj.endY);
-
-      if (obj.type === 'vector-red') {
-        ctx.strokeStyle = 'red';
-      } else if (obj.type === 'vector-green') {
-        ctx.strokeStyle = 'green';
+      const img = shipImages[obj.type][obj.color];
+      if (!img) {
+        console.error(`Изображение не найдено для ${obj.type}_${obj.color}`);
+        return;
+      }
+      if (!img.complete) {
+        console.warn(`Изображение ${obj.type}_${obj.color} ещё не загружено`);
+        return;
       }
 
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      const angle = Math.atan2(obj.endY - obj.startY, obj.endX - obj.startX);
-      const arrowLength = 10;
-      const arrowAngle = Math.PI / 6;
+      ctx.save();
+      ctx.translate(obj.x, obj.y);
 
-      ctx.beginPath();
+      if (obj.rotation !== undefined && obj.rotation !== 0) {
+        const angle = obj.rotation * Math.PI / 4;
+        ctx.rotate(angle);
+      }
 
-      ctx.moveTo(obj.endX, obj.endY);
-      ctx.lineTo(
-        obj.endX - arrowLength * Math.cos(angle - arrowAngle),
-        obj.endY - arrowLength * Math.sin(angle - arrowAngle)
-      );
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
 
-      ctx.moveTo(obj.endX, obj.endY);
-      ctx.lineTo(
-        obj.endX - arrowLength * Math.cos(angle + arrowAngle),
-        obj.endY - arrowLength * Math.sin(angle + arrowAngle)
-      );
+      if (obj.label && shipRadii[obj.label]) {
+        const mapSizeKm = mapSizes[currentMap] || 42;
+        const radiusPx = (shipRadii[obj.label] / mapSizeKm) * canvas.width;
 
-      ctx.strokeStyle = ctx.strokeStyle;
-      ctx.lineWidth = 2;
-      ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(0, 0, radiusPx, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255, 255, 0, 0.5)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      if (obj.label) {
+        ctx.restore();
+        ctx.font = '12px Arial';
+        ctx.fillStyle = 'yellow';
+        ctx.textAlign = 'center';
+        ctx.fillText(obj.label, obj.x, obj.y + img.height / 2 + 15);
+      } else {
+        ctx.restore();
+      }
+    } else if (obj.type === 'note') {
+    } else if (obj.type.startsWith('vector-')) {
     }
   });
-
-  if (drawingVector && vectorStartPoint && tempVectorEnd) {
-    ctx.beginPath();
-    ctx.moveTo(vectorStartPoint.x, vectorStartPoint.y);
-    ctx.lineTo(tempVectorEnd.x, tempVectorEnd.y);
-
-    if (vectorType === 'vector-red') {
-      ctx.strokeStyle = 'red';
-    } else if (vectorType === 'vector-green') {
-      ctx.strokeStyle = 'green';
-    }
-
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    const angle = Math.atan2(tempVectorEnd.y - vectorStartPoint.y, tempVectorEnd.x - vectorStartPoint.x);
-    const arrowLength = 10;
-    const arrowAngle = Math.PI / 6;
-
-    ctx.beginPath();
-
-    ctx.moveTo(tempVectorEnd.x, tempVectorEnd.y);
-    ctx.lineTo(
-      tempVectorEnd.x - arrowLength * Math.cos(angle - arrowAngle),
-      tempVectorEnd.y - arrowLength * Math.sin(angle - arrowAngle)
-    );
-
-    ctx.moveTo(tempVectorEnd.x, tempVectorEnd.y);
-    ctx.lineTo(
-      tempVectorEnd.x - arrowLength * Math.cos(angle + arrowAngle),
-      tempVectorEnd.y - arrowLength * Math.sin(angle + arrowAngle)
-    );
-
-    ctx.strokeStyle = ctx.strokeStyle;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }
 
   for (let i = ripples.length - 1; i >= 0; i--) {
     if (!ripples[i].update()) {
@@ -876,6 +846,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
