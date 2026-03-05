@@ -553,15 +553,6 @@ canvas.onmousedown = (e) => {
     const obj = objects[i];
     let inBounds = false;
 
-    if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
-      const img = shipImages[obj.type][obj.color];
-      if (img && img.complete) {
-        inBounds = x >= obj.x - img.width / 2 && x <= obj.x + img.width / 2 &&
-                   y >= obj.y - img.height / 2 && y <= obj.y + img.height / 2;
-      }
-    } else if (obj.type === 'note') {
-      inBounds = x >= obj.x - 30 && x <= obj.x + 70 && y >= obj.y - 20 && y <= obj.y + 10;
-    }
     else if (obj.type.startsWith('vector-')) {
       const dx = obj.endX - obj.startX;
       const dy = obj.endY - obj.startY;
@@ -575,7 +566,6 @@ canvas.onmousedown = (e) => {
       const cy = y - obj.startY;
 
       const proj = cx * nx + cy * ny;
-
       const clampedProj = Math.max(0, Math.min(length, proj));
 
       const closestX = obj.startX + nx * clampedProj;
@@ -588,13 +578,11 @@ canvas.onmousedown = (e) => {
 
     if (inBounds) {
       if (obj.type.startsWith('vector-')) {
-        selectedObject = obj;
-        offsetX = obj.startX - x;
-        offsetY = obj.startY - y;
+
+        draggedObj = { obj, index: i };
+
         isDragging = true;
         canvas.style.cursor = 'grabbing';
-
-        draggedObj = { obj, originalX: obj.startX, originalY: obj.startY, index: i };
         return;
       }
 
@@ -656,8 +644,14 @@ document.addEventListener('mouseup', (e) => {
     canvas.style.cursor = 'default';
   }
 
-  if (isDragging && selectedObject && selectedObject.type.startsWith('vector-')) {
-    const trashRect = trashcan.getBoundingClientRect();
+  if (isDragging && draggedObj && draggedObj.obj.type.startsWith('vector-')) {
+    const trashElement = document.getElementById('trashcan');
+    if (!trashElement) {
+      console.error('Trashcan element not found!');
+      return;
+    }
+
+    const trashRect = trashElement.getBoundingClientRect();
     const mouseX = e.clientX;
     const mouseY = e.clientY;
 
@@ -665,21 +659,28 @@ document.addEventListener('mouseup', (e) => {
         mouseY >= trashRect.top && mouseY <= trashRect.bottom) {
       objects.splice(draggedObj.index, 1);
       allObjects[currentMap] = objects;
+      drawObjects();
 
       socket.emit('remove-object', { id: draggedObj.obj.id });
 
       console.log('Вектор удалён:', draggedObj.obj.id);
     }
-    draggedObj = null;
-    drawObjects();
 
+    draggedObj = null;
     isDragging = false;
     selectedObject = null;
     canvas.style.cursor = 'default';
+    return;
   }
 
   if (draggedObj && !draggedObj.obj.type.startsWith('vector-')) {
-    const trashRect = trashcan.getBoundingClientRect();
+    const trashElement = document.getElementById('trashcan');
+    if (!trashElement) {
+      console.error('Trashcan element not found!');
+      return;
+    }
+
+    const trashRect = trashElement.getBoundingClientRect();
     const mouseX = e.clientX;
     const mouseY = e.clientY;
 
@@ -687,7 +688,7 @@ document.addEventListener('mouseup', (e) => {
         mouseY >= trashRect.top && mouseY <= trashRect.bottom) {
       objects.splice(draggedObj.index, 1);
       allObjects[currentMap] = objects;
-
+      drawObjects();
       socket.emit('remove-object', { id: draggedObj.obj.id });
 
       console.log('Объект удалён:', draggedObj.obj.id);
@@ -700,10 +701,10 @@ document.addEventListener('mouseup', (e) => {
     draggedObj = null;
     drawObjects();
   }
-  else if (draggedObj && draggedObj.obj.type.startsWith('vector-')) {
-    draggedObj = null;
-    drawObjects();
-  }
+
+  isDragging = false;
+  selectedObject = null;
+  canvas.style.cursor = 'default';
 });
 
 canvas.onmousemove = (e) => {
@@ -987,6 +988,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
