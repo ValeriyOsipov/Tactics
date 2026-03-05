@@ -188,8 +188,6 @@ socket.on('add-object', async (data) => {
 });
 
 socket.on('update-object', async (data) => {
-  console.log('Получено update-object:', data);
-
   const roomId = socket.roomId;
   const map = socket.currentMap;
   if (roomId) {
@@ -278,6 +276,25 @@ socket.on('update-object', async (data) => {
     }
   });
 
+socket.on('add-vector', async (vectorObj) => {
+  const roomId = socket.roomId;
+  const map = socket.currentMap;
+  if (roomId) {
+    let room = await getRoom(roomId);
+    if (room && room.maps[map]) {
+      room.maps[map].objects.push(vectorObj);
+      socket.to(roomId).emit('vector-added', vectorObj);
+
+      try {
+        await saveRoom(roomId, room);
+        console.log(`[ROOM: ${roomId}] Вектор добавлен`);
+      } catch (e) {
+        console.error(`[ROOM: ${roomId}] Ошибка при сохранении вектора:`, e);
+      }
+    }
+  }
+});
+  
   socket.on('disconnect', async () => {
     const roomId = socket.roomId;
     if (roomId) {
@@ -378,6 +395,9 @@ async function clearUsersOnStartup() {
 }
 
 clearUsersOnStartup();
+
+
+
 
 
 

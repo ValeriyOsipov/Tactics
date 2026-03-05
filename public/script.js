@@ -31,6 +31,11 @@ let currentPassword = null;
 
 let draggedObj = null;
 
+let drawingVector = false;
+let vectorType = null;
+let vectorStartPoint = null;
+let tempVectorEnd = null;
+
 const shipRadii = {
   'Des Moines': 10,
   'Salem': 8.5,
@@ -160,7 +165,10 @@ function drawObjects() {
         ctx.rotate(angle);
       }
 
-      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+      const scale = 1.2;
+      const scaledWidth = img.width * scale;
+      const scaledHeight = img.height * scale;
+      ctx.drawImage(img, -scaledWidth / 2, -scaledHeight / 2, scaledWidth, scaledHeight);
 
       if (obj.label && shipRadii[obj.label]) {
         const mapSizeKm = mapSizes[currentMap] || 42;
@@ -175,28 +183,93 @@ function drawObjects() {
 
       if (obj.label) {
         ctx.restore();
-        ctx.font = '12px Arial';
+        ctx.font = '14px Arial';
         ctx.fillStyle = 'yellow';
         ctx.textAlign = 'center';
-        ctx.fillText(obj.label, obj.x, obj.y + img.height / 2 + 15);
-
-        ctx.save();
-        ctx.translate(obj.x, obj.y);
-        if (obj.rotation !== undefined && obj.rotation !== 0) {
-          const angle = obj.rotation * Math.PI / 4;
-          ctx.rotate(angle);
-        }
+        ctx.fillText(obj.label, obj.x, obj.y + scaledHeight / 2 + 15);
+      } else {
+        ctx.restore();
       }
-
-      ctx.restore();
     } else if (obj.type === 'note') {
       ctx.font = '14px Arial';
       ctx.fillStyle = 'rgba(255, 255, 200, 0.9)';
       ctx.fillRect(obj.x - 30, obj.y - 20, 100, 30);
       ctx.fillStyle = 'black';
       ctx.fillText(obj.text, obj.x - 25, obj.y);
+    } else if (obj.type.startsWith('vector-')) {
+      ctx.beginPath();
+      ctx.moveTo(obj.startX, obj.startY);
+      ctx.lineTo(obj.endX, obj.endY);
+
+      if (obj.type === 'vector-red') {
+        ctx.strokeStyle = '#FF0000';
+      } else if (obj.type === 'vector-green') {
+        ctx.strokeStyle = '#00FF00';
+      }
+
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      const angle = Math.atan2(obj.endY - obj.startY, obj.endX - obj.startX);
+      const arrowLength = 10;
+      const arrowAngle = Math.PI / 6;
+
+      ctx.beginPath();
+
+      ctx.moveTo(obj.endX, obj.endY);
+      ctx.lineTo(
+        obj.endX - arrowLength * Math.cos(angle - arrowAngle),
+        obj.endY - arrowLength * Math.sin(angle - arrowAngle)
+      );
+
+      ctx.moveTo(obj.endX, obj.endY);
+      ctx.lineTo(
+        obj.endX - arrowLength * Math.cos(angle + arrowAngle),
+        obj.endY - arrowLength * Math.sin(angle + arrowAngle)
+      );
+
+      ctx.strokeStyle = ctx.strokeStyle;
+      ctx.lineWidth = 2;
+      ctx.stroke();
     }
   });
+
+  if (drawingVector && vectorStartPoint && tempVectorEnd) {
+    ctx.beginPath();
+    ctx.moveTo(vectorStartPoint.x, vectorStartPoint.y);
+    ctx.lineTo(tempVectorEnd.x, tempVectorEnd.y);
+
+    if (vectorType === 'vector-red') {
+      ctx.strokeStyle = '#FF0000';
+    } else if (vectorType === 'vector-green') {
+      ctx.strokeStyle = '#00FF00';
+    }
+
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    const angle = Math.atan2(tempVectorEnd.y - vectorStartPoint.y, tempVectorEnd.x - vectorStartPoint.x);
+    const arrowLength = 10;
+    const arrowAngle = Math.PI / 6;
+
+    ctx.beginPath();
+
+    ctx.moveTo(tempVectorEnd.x, tempVectorEnd.y);
+    ctx.lineTo(
+      tempVectorEnd.x - arrowLength * Math.cos(angle - arrowAngle),
+      tempVectorEnd.y - arrowLength * Math.sin(angle - arrowAngle)
+    );
+
+    ctx.moveTo(tempVectorEnd.x, tempVectorEnd.y);
+    ctx.lineTo(
+      tempVectorEnd.x - arrowLength * Math.cos(angle + arrowAngle),
+      tempVectorEnd.y - arrowLength * Math.sin(angle + arrowAngle)
+    );
+
+    ctx.strokeStyle = ctx.strokeStyle;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
 
   for (let i = ripples.length - 1; i >= 0; i--) {
     if (!ripples[i].update()) {
@@ -237,19 +310,32 @@ socket.on('available-maps', (maps) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.src = `ships/${type}_${color}.svg`;
-img.onload = () => {
-  if (img.width === 0 || img.height === 0) {
-    img.width = 30;
-    img.height = 30;
-  } else {
-    img.width = 30;
-    img.height = 30;
-  }
-};
+    img.onload = () => {
+      if (img.width === 0 || img.height === 0) {
+        img.width = 30;
+        img.height = 30;
+      } else {
+        img.width = 30;
+        img.height = 30;
+      }
+    };
     img.onerror = () => {
       console.error(`Ошибка загрузки ${type}_${color}.svg`);
     };
     shipImages[type][color] = img;
+  });
+});
+
+document.querySelectorAll('.ship-item').forEach(item => {
+  item.addEventListener('click', () => {
+    const type = item.getAttribute('data-type');
+    if (type.startsWith('vector-')) {
+      drawingVector = true;
+      vectorType = type;
+      vectorStartPoint = null;
+      tempVectorEnd = null;
+      console.log('Режим рисования вектора:', type);
+    }
   });
 });
 
@@ -291,13 +377,25 @@ socket.on('object-added', (obj) => {
   allObjects[currentMap] = objects;
 });
 
+socket.on('vector-added', (obj) => {
+  objects.push(obj);
+  allObjects[currentMap] = objects;
+});
+
 socket.on('object-updated', (data) => {
   const obj = objects.find(o => o.id === data.id);
   if (obj) {
-    obj.x = data.x;
-    obj.y = data.y;
-    if (data.label !== undefined) obj.label = data.label;
-    if (data.rotation !== undefined) obj.rotation = data.rotation;
+    if (obj.type.startsWith('vector-')) {
+      obj.startX = data.startX;
+      obj.startY = data.startY;
+      obj.endX = data.endX;
+      obj.endY = data.endY;
+    } else {
+      obj.x = data.x;
+      obj.y = data.y;
+      if (data.label !== undefined) obj.label = data.label;
+      if (data.rotation !== undefined) obj.rotation = data.rotation;
+    }
     allObjects[currentMap] = objects;
   }
 });
@@ -335,6 +433,40 @@ function updateUsersList(users) {
 let currentTool = null;
 
 canvas.onclick = (e) => {
+  if (drawingVector) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (!vectorStartPoint) {
+      vectorStartPoint = { x, y };
+      console.log('Начало вектора:', vectorStartPoint);
+    } else {
+      tempVectorEnd = { x, y };
+      const vectorObj = {
+        id: Date.now() + '-' + Math.random(),
+        type: vectorType,
+        startX: vectorStartPoint.x,
+        startY: vectorStartPoint.y,
+        endX: tempVectorEnd.x,
+        endY: tempVectorEnd.y
+      };
+
+      objects.push(vectorObj);
+      allObjects[currentMap] = objects;
+      drawObjects();
+
+      socket.emit('add-vector', vectorObj);
+
+      drawingVector = false;
+      vectorType = null;
+      vectorStartPoint = null;
+      tempVectorEnd = null;
+      console.log('Вектор добавлен:', vectorObj);
+    }
+    return;
+  }
+
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
@@ -354,12 +486,33 @@ canvas.onclick = (e) => {
   }
 };
 
+canvas.addEventListener('mousemove', (e) => {
+  if (drawingVector && vectorStartPoint) {
+    const rect = canvas.getBoundingClientRect();
+    tempVectorEnd = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    };
+    drawObjects();
+  }
+});
+
 socket.on('click-effect', (data) => {
   ripples.push(new Ripple(data.x, data.y));
 });
 
 canvas.oncontextmenu = (e) => {
   e.preventDefault();
+
+  if (drawingVector) {
+    drawingVector = false;
+    vectorType = null;
+    vectorStartPoint = null;
+    tempVectorEnd = null;
+    console.log('Режим вектора отменён');
+    e.preventDefault();
+    return;
+  }
 
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
@@ -396,6 +549,10 @@ canvas.oncontextmenu = (e) => {
 };
 
 canvas.onmousedown = (e) => {
+  if (drawingVector) {
+    return;
+  }
+
   if (e.button === 2) return;
 
   const rect = canvas.getBoundingClientRect();
@@ -416,14 +573,43 @@ canvas.onmousedown = (e) => {
       inBounds = x >= obj.x - 30 && x <= obj.x + 70 && y >= obj.y - 20 && y <= obj.y + 10;
     }
 
+    else if (obj.type.startsWith('vector-')) {
+      
+      const centerX = (obj.startX + obj.endX) / 2;
+      const centerY = (obj.startY + obj.endY) / 2;
+
+      const dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+      inBounds = dist < 20;
+    }
+
     if (inBounds) {
       selectedObject = obj;
-      offsetX = obj.x - x;
-      offsetY = obj.y - y;
+
+      if (obj.type.startsWith('vector-')) {
+        const centerX = (obj.startX + obj.endX) / 2;
+        const centerY = (obj.startY + obj.endY) / 2;
+
+        offsetX = centerX - x;
+        offsetY = centerY - y;
+      } else {
+        offsetX = obj.x - x;
+        offsetY = obj.y - y;
+      }
       isDragging = true;
       canvas.style.cursor = 'grabbing';
 
-      draggedObj = { obj, originalX: obj.x, originalY: obj.y, index: i };
+      if (obj.type.startsWith('vector-')) {
+        draggedObj = {
+          obj,
+          originalStartX: obj.startX,
+          originalStartY: obj.startY,
+          originalEndX: obj.endX,
+          originalEndY: obj.endY,
+          index: i
+        };
+      } else {
+        draggedObj = { obj, originalX: obj.x, originalY: obj.y, index: i };
+      }
 
       break;
     }
@@ -433,34 +619,88 @@ canvas.onmousedown = (e) => {
 document.addEventListener('mousemove', (e) => {
   if (isDragging && selectedObject) {
     const rect = canvas.getBoundingClientRect();
-    selectedObject.x = e.clientX - rect.left + offsetX;
-    selectedObject.y = e.clientY - rect.top + offsetY;
+    const newX = e.clientX - rect.left + offsetX;
+    const newY = e.clientY - rect.top + offsetY;
+
+    if (selectedObject.type.startsWith('vector-')) {
+      const dx = newX - ((selectedObject.startX + selectedObject.endX) / 2);
+      const dy = newY - ((selectedObject.startY + selectedObject.endY) / 2);
+
+      selectedObject.startX += dx;
+      selectedObject.endX += dx;
+      selectedObject.startY += dy;
+      selectedObject.endY += dy;
+    } else {
+      selectedObject.x = newX;
+      selectedObject.y = newY;
+    }
 
     allObjects[currentMap] = objects;
-
     drawObjects();
   }
 
-  if (!isDragging && draggedObj) {
+  if (!isDragging && draggedObj) { // <<< УБРАЛИ УСЛОВИЕ !draggedObj.obj.type.startsWith('vector-')
     const rect = canvas.getBoundingClientRect();
-    draggedObj.obj.x = e.clientX - rect.left;
-    draggedObj.obj.y = e.clientY - rect.top;
+
+    if (draggedObj.obj.type.startsWith('vector-')) {
+      
+      const currentCenterX = (draggedObj.obj.startX + draggedObj.obj.endX) / 2;
+      const currentCenterY = (draggedObj.obj.startY + draggedObj.obj.endY) / 2;
+
+      const dx = (e.clientX - rect.left) - currentCenterX;
+      const dy = (e.clientY - rect.top) - currentCenterY;
+
+      draggedObj.obj.startX += dx;
+      draggedObj.obj.endX += dx;
+      draggedObj.obj.startY += dy;
+      draggedObj.obj.endY += dy;
+    } else {
+      draggedObj.obj.x = e.clientX - rect.left;
+      draggedObj.obj.y = e.clientY - rect.top;
+    }
     drawObjects();
   }
 });
 
 document.addEventListener('mouseup', (e) => {
-  if (isDragging && selectedObject) {
-    ripples.push(new Ripple(selectedObject.x, selectedObject.y));
+if (isDragging && selectedObject) {
+    let objX, objY;
 
-    socket.emit('drag-end-effect', { x: selectedObject.x, y: selectedObject.y });
+    if (selectedObject.type.startsWith('vector-')) {
+      objX = (selectedObject.startX + selectedObject.endX) / 2;
+      objY = (selectedObject.startY + selectedObject.endY) / 2;
+    } else {
+      objX = selectedObject.x;
+      objY = selectedObject.y;
+    }
 
-    socket.emit('update-object', { id: selectedObject.id, x: selectedObject.x, y: selectedObject.y });
+    ripples.push(new Ripple(objX, objY));
+
+    socket.emit('drag-end-effect', { x: objX, y: objY });
+
+    if (selectedObject.type.startsWith('vector-')) {
+      socket.emit('update-object', {
+        id: selectedObject.id,
+        startX: selectedObject.startX,
+        startY: selectedObject.startY,
+        endX: selectedObject.endX,
+        endY: selectedObject.endY
+      });
+    } else {
+      socket.emit('update-object', { id: selectedObject.id, x: selectedObject.x, y: selectedObject.y });
+    }
 
     const obj = objects.find(o => o.id === selectedObject.id);
     if (obj) {
-      obj.x = selectedObject.x;
-      obj.y = selectedObject.y;
+      if (obj.type.startsWith('vector-')) {
+        obj.startX = selectedObject.startX;
+        obj.startY = selectedObject.startY;
+        obj.endX = selectedObject.endX;
+        obj.endY = selectedObject.endY;
+      } else {
+        obj.x = selectedObject.x;
+        obj.y = selectedObject.y;
+      }
       allObjects[currentMap] = objects;
     }
 
@@ -471,8 +711,14 @@ document.addEventListener('mouseup', (e) => {
     canvas.style.cursor = 'default';
   }
 
-  if (draggedObj) {
-    const trashRect = trashcan.getBoundingClientRect();
+  if (draggedObj) { 
+    const trashElement = document.getElementById('trashcan');
+    if (!trashElement) {
+      console.error('Trashcan element not found!');
+      return;
+    }
+
+    const trashRect = trashElement.getBoundingClientRect();
     const mouseX = e.clientX;
     const mouseY = e.clientY;
 
@@ -480,18 +726,34 @@ document.addEventListener('mouseup', (e) => {
         mouseY >= trashRect.top && mouseY <= trashRect.bottom) {
       objects.splice(draggedObj.index, 1);
       allObjects[currentMap] = objects;
+      drawObjects();
 
       socket.emit('remove-object', { id: draggedObj.obj.id });
 
-      console.log('Объект удалён:', draggedObj.obj.id);}
-    else {
-      if (draggedObj.obj.x <= 0 || draggedObj.obj.y <=0 || draggedObj.obj.x >= 900 || draggedObj.obj.y >= 900) {
-        draggedObj.obj.x = draggedObj.originalX;
-        draggedObj.obj.y = draggedObj.originalY;
+      console.log('Объект удалён:', draggedObj.obj.id);
+    } else {
+      if (draggedObj.obj.type.startsWith('vector-')) {
+        if ((draggedObj.obj.startX+draggedObj.obj.endX)/2 <= 0 || (draggedObj.obj.startY+draggedObj.obj.endY)/2 <=0 || (draggedObj.obj.startX+draggedObj.obj.endX)/2 >= 900 || (draggedObj.obj.startY+draggedObj.obj.endY)/2 >= 900){
+          draggedObj.obj.startX = draggedObj.originalStartX;
+          draggedObj.obj.startY = draggedObj.originalStartY;
+          draggedObj.obj.endX = draggedObj.originalEndX;
+          draggedObj.obj.endY = draggedObj.originalEndY;
+        }
+      } else {
+        if (draggedObj.obj.x <= 0 || draggedObj.obj.y <=0 || draggedObj.obj.x >= 900 || draggedObj.obj.y >= 900) {
+          draggedObj.obj.x = draggedObj.originalX;
+          draggedObj.obj.y = draggedObj.originalY;
+        }
       }
     }
-      draggedObj = null;
-      drawObjects();
+    draggedObj = null;
+    drawObjects();
+  }
+
+  if (!isDragging) {
+    isDragging = false;
+    selectedObject = null;
+    canvas.style.cursor = 'default';
   }
 });
 
@@ -512,6 +774,15 @@ canvas.onmouseleave = () => {
 };
 
 canvas.ondblclick = (e) => {
+  if (drawingVector) {
+    drawingVector = false;
+    vectorType = null;
+    vectorStartPoint = null;
+    tempVectorEnd = null;
+    console.log('Режим вектора отменён');
+    return;
+  }
+
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
@@ -556,6 +827,11 @@ shipsPanel.addEventListener('dragstart', (e) => {
   const el = e.target.closest('.ship-item');
   if (!el) return;
 
+  const type = el.dataset.type;
+  if (type && type.startsWith('vector-')) {
+    return;
+  }
+
   e.dataTransfer.setData('text/plain', JSON.stringify({
     type: el.dataset.type,
     color: el.dataset.color
@@ -567,12 +843,36 @@ canvas.addEventListener('dragover', (e) => {
 });
 
 canvas.addEventListener('drop', (e) => {
+  // === ОТМЕНА РЕЖИМА ВЕКТОРА ===
+  if (drawingVector) {
+    drawingVector = false;
+    vectorType = null;
+    vectorStartPoint = null;
+    tempVectorEnd = null;
+    console.log('Режим вектора отменён');
+    return;
+  }
+
   e.preventDefault();
 
   const data = e.dataTransfer.getData('text/plain');
   if (!data) return;
 
-  const { type, color } = JSON.parse(data);
+  let parsedData;
+  try {
+    parsedData = JSON.parse(data);
+  } catch (e) {
+    console.warn('Данные не являются JSON, игнорируем:', data);
+    return;
+  }
+
+  const { type, color } = parsedData;
+
+  if (type && type.startsWith('vector-')) {
+    console.warn('Нельзя добавлять векторы через drop');
+    return;
+  }
+
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
@@ -655,7 +955,7 @@ function addRadiusInfoTable() {
   tableDiv.style.top = '50%';
   tableDiv.style.transform = 'translateY(-50%)';
   tableDiv.style.left = 'calc(50% + 500px)';
-  tableDiv.style.width = '220px';
+  tableDiv.style.width = '160px';
   tableDiv.style.background = 'rgba(0, 0, 0, 0.7)';
   tableDiv.style.color = 'white';
   tableDiv.style.padding = '10px';
@@ -719,8 +1019,7 @@ function addRadiusInfoTable() {
     height: 80px;
     background: white;
     border-radius: 50%;
-    border-color: black;
-    cursor: pointer;
+    border: 2px solid black;
     z-index: 100;
     display: flex;
     align-items: center;
@@ -753,6 +1052,15 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
+
+
+
+
+
+
+
+
 
 
 
