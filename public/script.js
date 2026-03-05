@@ -188,9 +188,85 @@ function drawObjects() {
         ctx.restore();
       }
     } else if (obj.type === 'note') {
+      ctx.font = '14px Arial';
+      ctx.fillStyle = 'rgba(255, 255, 200, 0.9)';
+      ctx.fillRect(obj.x - 30, obj.y - 20, 100, 30);
+      ctx.fillStyle = 'black';
+      ctx.fillText(obj.text, obj.x - 25, obj.y);
     } else if (obj.type.startsWith('vector-')) {
+      ctx.beginPath();
+      ctx.moveTo(obj.startX, obj.startY);
+      ctx.lineTo(obj.endX, obj.endY);
+
+      if (obj.type === 'vector-red') {
+        ctx.strokeStyle = 'red';
+      } else if (obj.type === 'vector-green') {
+        ctx.strokeStyle = 'green';
+      }
+
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      const angle = Math.atan2(obj.endY - obj.startY, obj.endX - obj.startX);
+      const arrowLength = 10;
+      const arrowAngle = Math.PI / 6;
+
+      ctx.beginPath();
+
+      ctx.moveTo(obj.endX, obj.endY);
+      ctx.lineTo(
+        obj.endX - arrowLength * Math.cos(angle - arrowAngle),
+        obj.endY - arrowLength * Math.sin(angle - arrowAngle)
+      );
+
+      ctx.moveTo(obj.endX, obj.endY);
+      ctx.lineTo(
+        obj.endX - arrowLength * Math.cos(angle + arrowAngle),
+        obj.endY - arrowLength * Math.sin(angle + arrowAngle)
+      );
+
+      ctx.strokeStyle = ctx.strokeStyle;
+      ctx.lineWidth = 2;
+      ctx.stroke();
     }
   });
+
+  if (drawingVector && vectorStartPoint && tempVectorEnd) {
+    ctx.beginPath();
+    ctx.moveTo(vectorStartPoint.x, vectorStartPoint.y);
+    ctx.lineTo(tempVectorEnd.x, tempVectorEnd.y);
+
+    if (vectorType === 'vector-red') {
+      ctx.strokeStyle = 'red';
+    } else if (vectorType === 'vector-green') {
+      ctx.strokeStyle = 'green';
+    }
+
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    const angle = Math.atan2(tempVectorEnd.y - vectorStartPoint.y, tempVectorEnd.x - vectorStartPoint.x);
+    const arrowLength = 10;
+    const arrowAngle = Math.PI / 6;
+
+    ctx.beginPath();
+
+    ctx.moveTo(tempVectorEnd.x, tempVectorEnd.y);
+    ctx.lineTo(
+      tempVectorEnd.x - arrowLength * Math.cos(angle - arrowAngle),
+      tempVectorEnd.y - arrowLength * Math.sin(angle - arrowAngle)
+    );
+
+    ctx.moveTo(tempVectorEnd.x, tempVectorEnd.y);
+    ctx.lineTo(
+      tempVectorEnd.x - arrowLength * Math.cos(angle + arrowAngle),
+      tempVectorEnd.y - arrowLength * Math.sin(angle + arrowAngle)
+    );
+
+    ctx.strokeStyle = ctx.strokeStyle;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
 
   for (let i = ripples.length - 1; i >= 0; i--) {
     if (!ripples[i].update()) {
@@ -846,6 +922,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
