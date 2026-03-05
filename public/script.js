@@ -31,6 +31,11 @@ let currentPassword = null;
 
 let draggedObj = null;
 
+let drawingVector = false;
+let vectorType = null;
+let vectorStartPoint = null;
+let tempVectorEnd = null;
+
 const shipRadii = {
   'Des Moines': 10,
   'Salem': 8.5,
@@ -195,8 +200,37 @@ function drawObjects() {
       ctx.fillRect(obj.x - 30, obj.y - 20, 100, 30);
       ctx.fillStyle = 'black';
       ctx.fillText(obj.text, obj.x - 25, obj.y);
+    } else if (obj.type.startsWith('vector-')) {
+      // === ОТРИСОВКА ВЕКТОРА ===
+      ctx.beginPath();
+      ctx.moveTo(obj.startX, obj.startY);
+      ctx.lineTo(obj.endX, obj.endY);
+
+      if (obj.type === 'vector-red') {
+        ctx.strokeStyle = 'red';
+      } else if (obj.type === 'vector-green') {
+        ctx.strokeStyle = 'green';
+      }
+
+      ctx.lineWidth = 2;
+      ctx.stroke();
     }
   });
+
+  if (drawingVector && vectorStartPoint && tempVectorEnd) {
+    ctx.beginPath();
+    ctx.moveTo(vectorStartPoint.x, vectorStartPoint.y);
+    ctx.lineTo(tempVectorEnd.x, tempVectorEnd.y);
+
+    if (vectorType === 'vector-red') {
+      ctx.strokeStyle = 'red';
+    } else if (vectorType === 'vector-green') {
+      ctx.strokeStyle = 'green';
+    }
+
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
 
   for (let i = ripples.length - 1; i >= 0; i--) {
     if (!ripples[i].update()) {
@@ -237,19 +271,32 @@ socket.on('available-maps', (maps) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.src = `ships/${type}_${color}.svg`;
-img.onload = () => {
-  if (img.width === 0 || img.height === 0) {
-    img.width = 30;
-    img.height = 30;
-  } else {
-    img.width = 30;
-    img.height = 30;
-  }
-};
+    img.onload = () => {
+      if (img.width === 0 || img.height === 0) {
+        img.width = 30;
+        img.height = 30;
+      } else {
+        img.width = 30;
+        img.height = 30;
+      }
+    };
     img.onerror = () => {
       console.error(`Ошибка загрузки ${type}_${color}.svg`);
     };
     shipImages[type][color] = img;
+  });
+});
+
+document.querySelectorAll('.ship-item').forEach(item => {
+  item.addEventListener('click', () => {
+    const type = item.getAttribute('data-type');
+    if (type.startsWith('vector-')) {
+      drawingVector = true;
+      vectorType = type;
+      vectorStartPoint = null;
+      tempVectorEnd = null;
+      console.log('Режим рисования вектора:', type);
+    }
   });
 });
 
@@ -287,6 +334,11 @@ socket.on('room-data', (data) => {
 });
 
 socket.on('object-added', (obj) => {
+  objects.push(obj);
+  allObjects[currentMap] = objects;
+});
+
+socket.on('vector-added', (obj) => {
   objects.push(obj);
   allObjects[currentMap] = objects;
 });
@@ -335,6 +387,36 @@ function updateUsersList(users) {
 let currentTool = null;
 
 canvas.onclick = (e) => {
+  if (drawingVector) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (!vectorStartPoint) {
+      vectorStartPoint = { x, y };
+      console.log('Начало вектора:', vectorStartPoint);
+    } else {
+      tempVectorEnd = { x, y };
+      const vectorObj = {
+        id: Date.now() + '-' + Math.random(),
+        type: vectorType,
+        startX: vectorStartPoint.x,
+        startY: vectorStartPoint.y,
+        endX: tempVectorEnd.x,
+        endY: tempVectorEnd.y
+      };
+
+      socket.emit('add-vector', vectorObj);
+
+      drawingVector = false;
+      vectorType = null;
+      vectorStartPoint = null;
+      tempVectorEnd = null;
+      console.log('Вектор добавлен:', vectorObj);
+    }
+    return;
+  }
+
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
@@ -353,6 +435,17 @@ canvas.onclick = (e) => {
     socket.emit('add-object', obj);
   }
 };
+
+canvas.addEventListener('mousemove', (e) => {
+  if (drawingVector && vectorStartPoint) {
+    const rect = canvas.getBoundingClientRect();
+    tempVectorEnd = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    };
+    drawObjects();
+  }
+});
 
 socket.on('click-effect', (data) => {
   ripples.push(new Ripple(data.x, data.y));
@@ -397,6 +490,15 @@ canvas.oncontextmenu = (e) => {
 
 canvas.onmousedown = (e) => {
   if (e.button === 2) return;
+
+  if (drawingVector) {
+    drawingVector = false;
+    vectorType = null;
+    vectorStartPoint = null;
+    tempVectorEnd = null;
+    console.log('Режим вектора отменён');
+    return;
+  }
 
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
@@ -483,15 +585,15 @@ document.addEventListener('mouseup', (e) => {
 
       socket.emit('remove-object', { id: draggedObj.obj.id });
 
-      console.log('Объект удалён:', draggedObj.obj.id);}
-    else {
+      console.log('Объект удалён:', draggedObj.obj.id);
+    } else {
       if (draggedObj.obj.x <= 0 || draggedObj.obj.y <=0 || draggedObj.obj.x >= 900 || draggedObj.obj.y >= 900) {
         draggedObj.obj.x = draggedObj.originalX;
         draggedObj.obj.y = draggedObj.originalY;
       }
     }
-      draggedObj = null;
-      drawObjects();
+    draggedObj = null;
+    drawObjects();
   }
 });
 
@@ -512,6 +614,15 @@ canvas.onmouseleave = () => {
 };
 
 canvas.ondblclick = (e) => {
+  if (drawingVector) {
+    drawingVector = false;
+    vectorType = null;
+    vectorStartPoint = null;
+    tempVectorEnd = null;
+    console.log('Режим вектора отменён');
+    return;
+  }
+
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
@@ -556,6 +667,11 @@ shipsPanel.addEventListener('dragstart', (e) => {
   const el = e.target.closest('.ship-item');
   if (!el) return;
 
+  const type = el.dataset.type;
+  if (type && type.startsWith('vector-')) {
+    return;
+  }
+
   e.dataTransfer.setData('text/plain', JSON.stringify({
     type: el.dataset.type,
     color: el.dataset.color
@@ -567,6 +683,15 @@ canvas.addEventListener('dragover', (e) => {
 });
 
 canvas.addEventListener('drop', (e) => {
+  if (drawingVector) {
+    drawingVector = false;
+    vectorType = null;
+    vectorStartPoint = null;
+    tempVectorEnd = null;
+    console.log('Режим вектора отменён');
+    return;
+  }
+
   e.preventDefault();
 
   const data = e.dataTransfer.getData('text/plain');
@@ -698,8 +823,7 @@ function addRadiusInfoTable() {
     const td1 = document.createElement('td');
     td1.textContent = name;
     td1.style.padding = '2px';
-    td1.style.borderBottom = '1px solid rgba(255, 255, 255, 0.2)';
-    const td2 = document.createElement('td');
+    td1.style.borderBottom = '1px solid rgba(255, 255, 255, 0. td2 = document.createElement('td');
     td2.textContent = shipRadii[name];
     td2.style.padding = '2px';
     td2.style.borderBottom = '1px solid rgba(255, 255, 255, 0.2)';
@@ -753,16 +877,3 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
