@@ -843,6 +843,7 @@ canvas.addEventListener('dragover', (e) => {
 });
 
 canvas.addEventListener('drop', (e) => {
+  // === ОТМЕНА РЕЖИМА ВЕКТОРА ===
   if (drawingVector) {
     drawingVector = false;
     vectorType = null;
@@ -857,7 +858,21 @@ canvas.addEventListener('drop', (e) => {
   const data = e.dataTransfer.getData('text/plain');
   if (!data) return;
 
-  const { type, color } = JSON.parse(data);
+  let parsedData;
+  try {
+    parsedData = JSON.parse(data);
+  } catch (e) {
+    console.warn('Данные не являются JSON, игнорируем:', data);
+    return;
+  }
+
+  const { type, color } = parsedData;
+
+  if (type && type.startsWith('vector-')) {
+    console.warn('Нельзя добавлять векторы через drop');
+    return;
+  }
+
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
@@ -1038,6 +1053,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
