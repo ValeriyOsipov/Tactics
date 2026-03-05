@@ -237,9 +237,9 @@ function drawObjects() {
     ctx.lineTo(tempVectorEnd.x, tempVectorEnd.y);
 
     if (vectorType === 'vector-red') {
-      ctx.strokeStyle = 'red';
+      ctx.strokeStyle = '#FF0000';
     } else if (vectorType === 'vector-green') {
-      ctx.strokeStyle = 'green';
+      ctx.strokeStyle = '#00FF00';
     }
 
     ctx.lineWidth = 2;
@@ -1035,6 +1035,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
