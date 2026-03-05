@@ -108,3 +108,19 @@ body {
   cursor: pointer;
 }
 
+.forum-link {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  color: #007bff;
+  text-decoration: underline;
+  font-size: 12px;
+  z-index: 1000;
+  pointer-events: auto;
+  width: 250px;
+}
+
+.small-text {
+  font-size: 12px;
+  width: 60px;
+}
