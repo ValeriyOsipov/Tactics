@@ -553,6 +553,15 @@ canvas.onmousedown = (e) => {
     const obj = objects[i];
     let inBounds = false;
 
+    if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
+      const img = shipImages[obj.type][obj.color];
+      if (img && img.complete) {
+        inBounds = x >= obj.x - img.width / 2 && x <= obj.x + img.width / 2 &&
+                   y >= obj.y - img.height / 2 && y <= obj.y + img.height / 2;
+      }
+    } else if (obj.type === 'note') {
+      inBounds = x >= obj.x - 30 && x <= obj.x + 70 && y >= obj.y - 20 && y <= obj.y + 10;
+    }
     else if (obj.type.startsWith('vector-')) {
       const dx = obj.endX - obj.startX;
       const dy = obj.endY - obj.startY;
@@ -566,6 +575,7 @@ canvas.onmousedown = (e) => {
       const cy = y - obj.startY;
 
       const proj = cx * nx + cy * ny;
+
       const clampedProj = Math.max(0, Math.min(length, proj));
 
       const closestX = obj.startX + nx * clampedProj;
@@ -988,6 +998,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
