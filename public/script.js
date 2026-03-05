@@ -562,7 +562,9 @@ canvas.onmousedown = (e) => {
     } else if (obj.type === 'note') {
       inBounds = x >= obj.x - 30 && x <= obj.x + 70 && y >= obj.y - 20 && y <= obj.y + 10;
     }
+
     else if (obj.type.startsWith('vector-')) {
+      
       const centerX = (obj.startX + obj.endX) / 2;
       const centerY = (obj.startY + obj.endY) / 2;
 
@@ -578,7 +580,7 @@ canvas.onmousedown = (e) => {
         const centerY = (obj.startY + obj.endY) / 2;
 
         offsetX = centerX - x;
-        offsetY = centerY - y; 
+        offsetY = centerY - y;
       } else {
         offsetX = obj.x - x;
         offsetY = obj.y - y;
@@ -586,7 +588,18 @@ canvas.onmousedown = (e) => {
       isDragging = true;
       canvas.style.cursor = 'grabbing';
 
-      draggedObj = { obj, originalX: obj.x, originalY: obj.y, index: i }; // <<< originalX/Y пока не для вектора
+      if (obj.type.startsWith('vector-')) {
+        draggedObj = {
+          obj,
+          originalStartX: obj.startX,
+          originalStartY: obj.startY,
+          originalEndX: obj.endX,
+          originalEndY: obj.endY,
+          index: i
+        };
+      } else {
+        draggedObj = { obj, originalX: obj.x, originalY: obj.y, index: i };
+      }
 
       break;
     }
@@ -616,10 +629,25 @@ document.addEventListener('mousemove', (e) => {
     drawObjects();
   }
 
-  if (!isDragging && draggedObj && !draggedObj.obj.type.startsWith('vector-')) {
+  if (!isDragging && draggedObj) { // <<< УБРАЛИ УСЛОВИЕ !draggedObj.obj.type.startsWith('vector-')
     const rect = canvas.getBoundingClientRect();
-    draggedObj.obj.x = e.clientX - rect.left;
-    draggedObj.obj.y = e.clientY - rect.top;
+
+    if (draggedObj.obj.type.startsWith('vector-')) {
+      
+      const currentCenterX = (draggedObj.obj.startX + draggedObj.obj.endX) / 2;
+      const currentCenterY = (draggedObj.obj.startY + draggedObj.obj.endY) / 2;
+
+      const dx = (e.clientX - rect.left) - currentCenterX;
+      const dy = (e.clientY - rect.top) - currentCenterY;
+
+      draggedObj.obj.startX += dx;
+      draggedObj.obj.endX += dx;
+      draggedObj.obj.startY += dy;
+      draggedObj.obj.endY += dy;
+    } else {
+      draggedObj.obj.x = e.clientX - rect.left;
+      draggedObj.obj.y = e.clientY - rect.top;
+    }
     drawObjects();
   }
 });
@@ -673,7 +701,7 @@ document.addEventListener('mouseup', (e) => {
     canvas.style.cursor = 'default';
   }
 
-  if (draggedObj && !draggedObj.obj.type.startsWith('vector-')) {
+  if (draggedObj) { 
     const trashElement = document.getElementById('trashcan');
     if (!trashElement) {
       console.error('Trashcan element not found!');
@@ -694,9 +722,16 @@ document.addEventListener('mouseup', (e) => {
 
       console.log('Объект удалён:', draggedObj.obj.id);
     } else {
-      if (draggedObj.obj.x <= 0 || draggedObj.obj.y <=0 || draggedObj.obj.x >= 900 || draggedObj.obj.y >= 900) {
-        draggedObj.obj.x = draggedObj.originalX;
-        draggedObj.obj.y = draggedObj.originalY;
+      if (draggedObj.obj.type.startsWith('vector-')) {
+        draggedObj.obj.startX = draggedObj.originalStartX;
+        draggedObj.obj.startY = draggedObj.originalStartY;
+        draggedObj.obj.endX = draggedObj.originalEndX;
+        draggedObj.obj.endY = draggedObj.originalEndY;
+      } else {
+        if (draggedObj.obj.x <= 0 || draggedObj.obj.y <=0 || draggedObj.obj.x >= 900 || draggedObj.obj.y >= 900) {
+          draggedObj.obj.x = draggedObj.originalX;
+          draggedObj.obj.y = draggedObj.originalY;
+        }
       }
     }
     draggedObj = null;
@@ -991,6 +1026,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
