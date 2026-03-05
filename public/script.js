@@ -539,11 +539,11 @@ canvas.oncontextmenu = (e) => {
 };
 
 canvas.onmousedown = (e) => {
-  if (e.button === 2) return;
-
   if (drawingVector) {
     return;
   }
+
+  if (e.button === 2) return;
 
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
@@ -562,8 +562,42 @@ canvas.onmousedown = (e) => {
     } else if (obj.type === 'note') {
       inBounds = x >= obj.x - 30 && x <= obj.x + 70 && y >= obj.y - 20 && y <= obj.y + 10;
     }
+    else if (obj.type.startsWith('vector-')) {
+      const dx = obj.endX - obj.startX;
+      const dy = obj.endY - obj.startY;
+      const length = Math.sqrt(dx * dx + dy * dy);
+      if (length === 0) continue;
+
+      const nx = dx / length;
+      const ny = dy / length;
+
+      const cx = x - obj.startX;
+      const cy = y - obj.startY;
+
+      const proj = cx * nx + cy * ny;
+
+      const clampedProj = Math.max(0, Math.min(length, proj));
+
+      const closestX = obj.startX + nx * clampedProj;
+      const closestY = obj.startY + ny * clampedProj;
+
+      const dist = Math.sqrt((x - closestX) ** 2 + (y - closestY) ** 2);
+
+      inBounds = dist < 10;
+    }
 
     if (inBounds) {
+      if (obj.type.startsWith('vector-')) {
+        selectedObject = obj;
+        offsetX = obj.startX - x;
+        offsetY = obj.startY - y;
+        isDragging = true;
+        canvas.style.cursor = 'grabbing';
+
+        draggedObj = { obj, originalX: obj.startX, originalY: obj.startY, index: i };
+        return;
+      }
+
       selectedObject = obj;
       offsetX = obj.x - x;
       offsetY = obj.y - y;
@@ -576,27 +610,32 @@ canvas.onmousedown = (e) => {
     }
   }
 };
+
 document.addEventListener('mousemove', (e) => {
   if (isDragging && selectedObject) {
-    const rect = canvas.getBoundingClientRect();
-    selectedObject.x = e.clientX - rect.left + offsetX;
-    selectedObject.y = e.clientY - rect.top + offsetY;
-
-    allObjects[currentMap] = objects;
-
-    drawObjects();
+    if (!selectedObject.type.startsWith('vector-')) {
+      const rect = canvas.getBoundingClientRect();
+      selectedObject.x = e.clientX - rect.left + offsetX;
+      selectedObject.y = e.clientY - rect.top + offsetY;
+      allObjects[currentMap] = objects;
+      drawObjects();
+    }
+    else {
+    }
   }
 
-  if (!isDragging && draggedObj) {
+  if (!isDragging && draggedObj && !draggedObj.obj.type.startsWith('vector-')) {
     const rect = canvas.getBoundingClientRect();
     draggedObj.obj.x = e.clientX - rect.left;
     draggedObj.obj.y = e.clientY - rect.top;
     drawObjects();
   }
+  else if (!isDragging && draggedObj && draggedObj.obj.type.startsWith('vector-')) {
+  }
 });
 
 document.addEventListener('mouseup', (e) => {
-  if (isDragging && selectedObject) {
+  if (isDragging && selectedObject && !selectedObject.type.startsWith('vector-')) {
     ripples.push(new Ripple(selectedObject.x, selectedObject.y));
 
     socket.emit('drag-end-effect', { x: selectedObject.x, y: selectedObject.y });
@@ -617,7 +656,29 @@ document.addEventListener('mouseup', (e) => {
     canvas.style.cursor = 'default';
   }
 
-  if (draggedObj) {
+  if (isDragging && selectedObject && selectedObject.type.startsWith('vector-')) {
+    const trashRect = trashcan.getBoundingClientRect();
+    const mouseX = e.clientX;
+    const mouseY = e.clientY;
+
+    if (mouseX >= trashRect.left && mouseX <= trashRect.right &&
+        mouseY >= trashRect.top && mouseY <= trashRect.bottom) {
+      objects.splice(draggedObj.index, 1);
+      allObjects[currentMap] = objects;
+
+      socket.emit('remove-object', { id: draggedObj.obj.id });
+
+      console.log('Вектор удалён:', draggedObj.obj.id);
+    }
+    draggedObj = null;
+    drawObjects();
+
+    isDragging = false;
+    selectedObject = null;
+    canvas.style.cursor = 'default';
+  }
+
+  if (draggedObj && !draggedObj.obj.type.startsWith('vector-')) {
     const trashRect = trashcan.getBoundingClientRect();
     const mouseX = e.clientX;
     const mouseY = e.clientY;
@@ -636,6 +697,10 @@ document.addEventListener('mouseup', (e) => {
         draggedObj.obj.y = draggedObj.originalY;
       }
     }
+    draggedObj = null;
+    drawObjects();
+  }
+  else if (draggedObj && draggedObj.obj.type.startsWith('vector-')) {
     draggedObj = null;
     drawObjects();
   }
@@ -922,6 +987,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
