@@ -165,7 +165,7 @@ function drawObjects() {
         ctx.rotate(angle);
       }
 
-      const scale = 1.5;
+      const scale = 1.2;
       const scaledWidth = img.width * scale;
       const scaledHeight = img.height * scale;
       ctx.drawImage(img, -scaledWidth / 2, -scaledHeight / 2, scaledWidth, scaledHeight);
@@ -183,10 +183,10 @@ function drawObjects() {
 
       if (obj.label) {
         ctx.restore();
-        ctx.font = '12px Arial';
+        ctx.font = '14px Arial';
         ctx.fillStyle = 'yellow';
         ctx.textAlign = 'center';
-        ctx.fillText(obj.label, obj.x, obj.y + img.scaledHeight / 2 + 15);
+        ctx.fillText(obj.label, obj.x, obj.y + scaledHeight / 2 + 15);
       } else {
         ctx.restore();
       }
@@ -1038,6 +1038,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
