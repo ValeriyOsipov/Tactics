@@ -382,10 +382,17 @@ socket.on('vector-added', (obj) => {
 socket.on('object-updated', (data) => {
   const obj = objects.find(o => o.id === data.id);
   if (obj) {
-    obj.x = data.x;
-    obj.y = data.y;
-    if (data.label !== undefined) obj.label = data.label;
-    if (data.rotation !== undefined) obj.rotation = data.rotation;
+    if (obj.type.startsWith('vector-')) {
+      obj.startX = data.startX;
+      obj.startY = data.startY;
+      obj.endX = data.endX;
+      obj.endY = data.endY;
+    } else {
+      obj.x = data.x;
+      obj.y = data.y;
+      if (data.label !== undefined) obj.label = data.label;
+      if (data.rotation !== undefined) obj.rotation = data.rotation;
+    }
     allObjects[currentMap] = objects;
   }
 });
@@ -653,7 +660,7 @@ document.addEventListener('mousemove', (e) => {
 });
 
 document.addEventListener('mouseup', (e) => {
-  if (isDragging && selectedObject) {
+if (isDragging && selectedObject) {
     let objX, objY;
 
     if (selectedObject.type.startsWith('vector-')) {
@@ -1026,6 +1033,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
