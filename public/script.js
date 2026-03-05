@@ -562,20 +562,23 @@ canvas.onmousedown = (e) => {
     } else if (obj.type === 'note') {
       inBounds = x >= obj.x - 30 && x <= obj.x + 70 && y >= obj.y - 20 && y <= obj.y + 10;
     }
-
     else if (obj.type.startsWith('vector-')) {
       const centerX = (obj.startX + obj.endX) / 2;
       const centerY = (obj.startY + obj.endY) / 2;
 
       const dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
-      inBounds = dist < 10;
+      inBounds = dist < 20;
     }
 
     if (inBounds) {
       selectedObject = obj;
+
       if (obj.type.startsWith('vector-')) {
+        const centerX = (obj.startX + obj.endX) / 2;
+        const centerY = (obj.startY + obj.endY) / 2;
+
         offsetX = centerX - x;
-        offsetY = centerY - y;
+        offsetY = centerY - y; 
       } else {
         offsetX = obj.x - x;
         offsetY = obj.y - y;
@@ -583,7 +586,7 @@ canvas.onmousedown = (e) => {
       isDragging = true;
       canvas.style.cursor = 'grabbing';
 
-      draggedObj = { obj, originalX: obj.x, originalY: obj.y, index: i };
+      draggedObj = { obj, originalX: obj.x, originalY: obj.y, index: i }; // <<< originalX/Y пока не для вектора
 
       break;
     }
@@ -988,6 +991,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
