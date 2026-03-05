@@ -195,10 +195,16 @@ socket.on('update-object', async (data) => {
     if (room && room.maps[map]) {
       const obj = room.maps[map].objects.find(o => o.id === data.id);
       if (obj) {
-        obj.x = data.x;
-        obj.y = data.y;
+        if (data.x !== undefined) obj.x = data.x;
+        if (data.y !== undefined) obj.y = data.y;
+
         if (data.label !== undefined) obj.label = data.label;
         if (data.rotation !== undefined) obj.rotation = data.rotation;
+
+        if (data.startX !== undefined) obj.startX = data.startX;
+        if (data) obj.startY = data.startY;
+        if (data.endX !== undefined) obj.endX = data.endX;
+        if (data.endY !== undefined) obj.endY = data.endY;
 
         socket.to(roomId).emit('object-updated', data);
 
@@ -208,11 +214,7 @@ socket.on('update-object', async (data) => {
         } catch (e) {
           console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (update-object):`, e);
         }
-      } else {
-        console.log('Объект не найден при update-object:', data.id);
       }
-    } else {
-      console.log('Комната или карта не найдены при update-object');
     }
   }
 });
@@ -395,6 +397,7 @@ async function clearUsersOnStartup() {
 }
 
 clearUsersOnStartup();
+
 
 
 
