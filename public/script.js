@@ -730,7 +730,7 @@ if (isDragging && selectedObject) {
       console.log('Объект удалён:', draggedObj.obj.id);
     } else {
       if (draggedObj.obj.type.startsWith('vector-')) {
-        if ((draggedObj.obj.endX+draggedObj.obj.endY)/2 <= 0 || (draggedObj.obj.endX+draggedObj.obj.endY)/2 >= 900) {
+        if ((draggedObj.obj.endX+draggedObj.obj.endX)/2 <= 0 || (draggedObj.obj.endY+draggedObj.obj.endY)/2 <=0) || (draggedObj.obj.endX+draggedObj.obj.endX)/2 >= 900) || (draggedObj.obj.endY+draggedObj.obj.endY)/2 >= 900){
           draggedObj.obj.startX = draggedObj.originalStartX;
           draggedObj.obj.startY = draggedObj.originalStartY;
           draggedObj.obj.endX = draggedObj.originalEndX;
@@ -1035,6 +1035,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
