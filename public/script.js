@@ -562,43 +562,24 @@ canvas.onmousedown = (e) => {
     } else if (obj.type === 'note') {
       inBounds = x >= obj.x - 30 && x <= obj.x + 70 && y >= obj.y - 20 && y <= obj.y + 10;
     }
+
     else if (obj.type.startsWith('vector-')) {
-      const dx = obj.endX - obj.startX;
-      const dy = obj.endY - obj.startY;
-      const length = Math.sqrt(dx * dx + dy * dy);
-      if (length === 0) continue;
+      const centerX = (obj.startX + obj.endX) / 2;
+      const centerY = (obj.startY + obj.endY) / 2;
 
-      const nx = dx / length;
-      const ny = dy / length;
-
-      const cx = x - obj.startX;
-      const cy = y - obj.startY;
-
-      const proj = cx * nx + cy * ny;
-
-      const clampedProj = Math.max(0, Math.min(length, proj));
-
-      const closestX = obj.startX + nx * clampedProj;
-      const closestY = obj.startY + ny * clampedProj;
-
-      const dist = Math.sqrt((x - closestX) ** 2 + (y - closestY) ** 2);
-
+      const dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
       inBounds = dist < 10;
     }
 
     if (inBounds) {
-      if (obj.type.startsWith('vector-')) {
-
-        draggedObj = { obj, index: i };
-
-        isDragging = true;
-        canvas.style.cursor = 'grabbing';
-        return;
-      }
-
       selectedObject = obj;
-      offsetX = obj.x - x;
-      offsetY = obj.y - y;
+      if (obj.type.startsWith('vector-')) {
+        offsetX = centerX - x;
+        offsetY = centerY - y;
+      } else {
+        offsetX = obj.x - x;
+        offsetY = obj.y - y;
+      }
       isDragging = true;
       canvas.style.cursor = 'grabbing';
 
@@ -611,15 +592,25 @@ canvas.onmousedown = (e) => {
 
 document.addEventListener('mousemove', (e) => {
   if (isDragging && selectedObject) {
-    if (!selectedObject.type.startsWith('vector-')) {
-      const rect = canvas.getBoundingClientRect();
-      selectedObject.x = e.clientX - rect.left + offsetX;
-      selectedObject.y = e.clientY - rect.top + offsetY;
-      allObjects[currentMap] = objects;
-      drawObjects();
+    const rect = canvas.getBoundingClientRect();
+    const newX = e.clientX - rect.left + offsetX;
+    const newY = e.clientY - rect.top + offsetY;
+
+    if (selectedObject.type.startsWith('vector-')) {
+      const dx = newX - ((selectedObject.startX + selectedObject.endX) / 2);
+      const dy = newY - ((selectedObject.startY + selectedObject.endY) / 2);
+
+      selectedObject.startX += dx;
+      selectedObject.endX += dx;
+      selectedObject.startY += dy;
+      selectedObject.endY += dy;
+    } else {
+      selectedObject.x = newX;
+      selectedObject.y = newY;
     }
-    else {
-    }
+
+    allObjects[currentMap] = objects;
+    drawObjects();
   }
 
   if (!isDragging && draggedObj && !draggedObj.obj.type.startsWith('vector-')) {
@@ -628,22 +619,47 @@ document.addEventListener('mousemove', (e) => {
     draggedObj.obj.y = e.clientY - rect.top;
     drawObjects();
   }
-  else if (!isDragging && draggedObj && draggedObj.obj.type.startsWith('vector-')) {
-  }
 });
 
 document.addEventListener('mouseup', (e) => {
-  if (isDragging && selectedObject && !selectedObject.type.startsWith('vector-')) {
-    ripples.push(new Ripple(selectedObject.x, selectedObject.y));
+  if (isDragging && selectedObject) {
+    let objX, objY;
 
-    socket.emit('drag-end-effect', { x: selectedObject.x, y: selectedObject.y });
+    if (selectedObject.type.startsWith('vector-')) {
+      objX = (selectedObject.startX + selectedObject.endX) / 2;
+      objY = (selectedObject.startY + selectedObject.endY) / 2;
+    } else {
+      objX = selectedObject.x;
+      objY = selectedObject.y;
+    }
 
-    socket.emit('update-object', { id: selectedObject.id, x: selectedObject.x, y: selectedObject.y });
+    ripples.push(new Ripple(objX, objY));
+
+    socket.emit('drag-end-effect', { x: objX, y: objY });
+
+    if (selectedObject.type.startsWith('vector-')) {
+      socket.emit('update-object', {
+        id: selectedObject.id,
+        startX: selectedObject.startX,
+        startY: selectedObject.startY,
+        endX: selectedObject.endX,
+        endY: selectedObject.endY
+      });
+    } else {
+      socket.emit('update-object', { id: selectedObject.id, x: selectedObject.x, y: selectedObject.y });
+    }
 
     const obj = objects.find(o => o.id === selectedObject.id);
     if (obj) {
-      obj.x = selectedObject.x;
-      obj.y = selectedObject.y;
+      if (obj.type.startsWith('vector-')) {
+        obj.startX = selectedObject.startX;
+        obj.startY = selectedObject.startY;
+        obj.endX = selectedObject.endX;
+        obj.endY = selectedObject.endY;
+      } else {
+        obj.x = selectedObject.x;
+        obj.y = selectedObject.y;
+      }
       allObjects[currentMap] = objects;
     }
 
@@ -652,35 +668,6 @@ document.addEventListener('mouseup', (e) => {
     isDragging = false;
     selectedObject = null;
     canvas.style.cursor = 'default';
-  }
-
-  if (isDragging && draggedObj && draggedObj.obj.type.startsWith('vector-')) {
-    const trashElement = document.getElementById('trashcan');
-    if (!trashElement) {
-      console.error('Trashcan element not found!');
-      return;
-    }
-
-    const trashRect = trashElement.getBoundingClientRect();
-    const mouseX = e.clientX;
-    const mouseY = e.clientY;
-
-    if (mouseX >= trashRect.left && mouseX <= trashRect.right &&
-        mouseY >= trashRect.top && mouseY <= trashRect.bottom) {
-      objects.splice(draggedObj.index, 1);
-      allObjects[currentMap] = objects;
-      drawObjects();
-
-      socket.emit('remove-object', { id: draggedObj.obj.id });
-
-      console.log('Вектор удалён:', draggedObj.obj.id);
-    }
-
-    draggedObj = null;
-    isDragging = false;
-    selectedObject = null;
-    canvas.style.cursor = 'default';
-    return;
   }
 
   if (draggedObj && !draggedObj.obj.type.startsWith('vector-')) {
@@ -699,6 +686,7 @@ document.addEventListener('mouseup', (e) => {
       objects.splice(draggedObj.index, 1);
       allObjects[currentMap] = objects;
       drawObjects();
+
       socket.emit('remove-object', { id: draggedObj.obj.id });
 
       console.log('Объект удалён:', draggedObj.obj.id);
@@ -712,9 +700,11 @@ document.addEventListener('mouseup', (e) => {
     drawObjects();
   }
 
-  isDragging = false;
-  selectedObject = null;
-  canvas.style.cursor = 'default';
+  if (!isDragging) {
+    isDragging = false;
+    selectedObject = null;
+    canvas.style.cursor = 'default';
+  }
 });
 
 canvas.onmousemove = (e) => {
@@ -998,6 +988,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
