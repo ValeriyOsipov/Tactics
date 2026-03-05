@@ -11,8 +11,8 @@ const io = socketIo(server, {
     origin: "https://mk-tactics.ru", // исправлено
     methods: ["GET", "POST"]
   },
-  pingInterval: 20000,
-  pingTimeout: 10000
+  pingInterval: 60000,
+  pingTimeout: 30000
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -378,6 +378,7 @@ async function clearUsersOnStartup() {
 }
 
 clearUsersOnStartup();
+
 
 
 
