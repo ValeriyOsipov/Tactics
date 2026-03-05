@@ -199,9 +199,9 @@ function drawObjects() {
       ctx.lineTo(obj.endX, obj.endY);
 
       if (obj.type === 'vector-red') {
-        ctx.strokeStyle = 'red';
+        ctx.strokeStyle = '#FF0000';
       } else if (obj.type === 'vector-green') {
-        ctx.strokeStyle = 'green';
+        ctx.strokeStyle = '#00FF00';
       }
 
       ctx.lineWidth = 2;
@@ -1001,7 +1001,7 @@ function addRadiusInfoTable() {
     height: 80px;
     background: white;
     border-radius: 50%;
-    border-color: black;
+    border: 2px solid black;
     cursor: pointer;
     z-index: 100;
     display: flex;
@@ -1035,6 +1035,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
