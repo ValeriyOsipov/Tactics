@@ -823,7 +823,8 @@ function addRadiusInfoTable() {
     const td1 = document.createElement('td');
     td1.textContent = name;
     td1.style.padding = '2px';
-    td1.style.borderBottom = '1px solid rgba(255, 255, 255, 0. td2 = document.createElement('td');
+    td1.style.borderBottom = '1px solid rgba(255, 255, 255, 0.2)';
+    const td2 = document.createElement('td');
     td2.textContent = shipRadii[name];
     td2.style.padding = '2px';
     td2.style.borderBottom = '1px solid rgba(255, 255, 255, 0.2)';
@@ -877,3 +878,4 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
