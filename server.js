@@ -188,8 +188,6 @@ socket.on('add-object', async (data) => {
 });
 
 socket.on('update-object', async (data) => {
-  console.log(`[ROOM: ${roomId}] Получено update-object`);
-
   const roomId = socket.roomId;
   const map = socket.currentMap;
   if (roomId) {
@@ -397,6 +395,7 @@ async function clearUsersOnStartup() {
 }
 
 clearUsersOnStartup();
+
 
 
 
