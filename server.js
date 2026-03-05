@@ -188,7 +188,7 @@ socket.on('add-object', async (data) => {
 });
 
 socket.on('update-object', async (data) => {
-  console.log('Получено update-object:', data);
+  console.log(`[ROOM: ${roomId}] Получено update-object`);
 
   const roomId = socket.roomId;
   const map = socket.currentMap;
@@ -289,7 +289,7 @@ socket.on('add-vector', async (vectorObj) => {
 
       try {
         await saveRoom(roomId, room);
-        console.log(`[ROOM: ${roomId}] Вектор добавлен:`, vectorObj);
+        console.log(`[ROOM: ${roomId}] Вектор добавлен`);
       } catch (e) {
         console.error(`[ROOM: ${roomId}] Ошибка при сохранении вектора:`, e);
       }
@@ -397,6 +397,7 @@ async function clearUsersOnStartup() {
 }
 
 clearUsersOnStartup();
+
 
 
 
