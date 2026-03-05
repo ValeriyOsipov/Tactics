@@ -165,7 +165,10 @@ function drawObjects() {
         ctx.rotate(angle);
       }
 
-      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+      const scale = 1.5;
+      const scaledWidth = img.width * scale;
+      const scaledHeight = img.height * scale;
+      ctx.drawImage(img, -scaledWidth / 2, -scaledHeight / 2, scaledWidth, scaledHeight);
 
       if (obj.label && shipRadii[obj.label]) {
         const mapSizeKm = mapSizes[currentMap] || 42;
@@ -183,7 +186,7 @@ function drawObjects() {
         ctx.font = '12px Arial';
         ctx.fillStyle = 'yellow';
         ctx.textAlign = 'center';
-        ctx.fillText(obj.label, obj.x, obj.y + img.height / 2 + 15);
+        ctx.fillText(obj.label, obj.x, obj.y + img.scaledHeight / 2 + 15);
       } else {
         ctx.restore();
       }
@@ -1035,6 +1038,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
