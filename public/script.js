@@ -955,7 +955,7 @@ function addRadiusInfoTable() {
   tableDiv.style.top = '50%';
   tableDiv.style.transform = 'translateY(-50%)';
   tableDiv.style.left = 'calc(50% + 500px)';
-  tableDiv.style.width = '220px';
+  tableDiv.style.width = '160px';
   tableDiv.style.background = 'rgba(0, 0, 0, 0.7)';
   tableDiv.style.color = 'white';
   tableDiv.style.padding = '10px';
@@ -1020,7 +1020,6 @@ function addRadiusInfoTable() {
     background: white;
     border-radius: 50%;
     border: 2px solid black;
-    cursor: pointer;
     z-index: 100;
     display: flex;
     align-items: center;
@@ -1053,6 +1052,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
