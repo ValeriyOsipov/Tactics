@@ -454,6 +454,16 @@ socket.on('click-effect', (data) => {
 canvas.oncontextmenu = (e) => {
   e.preventDefault();
 
+  if (drawingVector) {
+    drawingVector = false;
+    vectorType = null;
+    vectorStartPoint = null;
+    tempVectorEnd = null;
+    console.log('Режим вектора отменён');
+    e.preventDefault();
+    return;
+  }
+
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
@@ -492,11 +502,6 @@ canvas.onmousedown = (e) => {
   if (e.button === 2) return;
 
   if (drawingVector) {
-    drawingVector = false;
-    vectorType = null;
-    vectorStartPoint = null;
-    tempVectorEnd = null;
-    console.log('Режим вектора отменён');
     return;
   }
 
@@ -531,7 +536,6 @@ canvas.onmousedown = (e) => {
     }
   }
 };
-
 document.addEventListener('mousemove', (e) => {
   if (isDragging && selectedObject) {
     const rect = canvas.getBoundingClientRect();
@@ -878,4 +882,5 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
