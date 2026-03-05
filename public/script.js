@@ -714,11 +714,12 @@ function addRadiusInfoTable() {
   trashcan.style = `
     position: absolute;
     top: 10px;
-    left: calc(50% - 500px);
+    left: calc(50% + 500px);
     width: 80px;
     height: 80px;
     background: white;
     border-radius: 50%;
+    border-color: black;
     cursor: pointer;
     z-index: 100;
     display: flex;
@@ -752,6 +753,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
