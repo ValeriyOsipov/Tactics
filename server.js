@@ -40,7 +40,7 @@ async function withRoomLock(roomId, callback) {
   try {
     return await callback();
   } finally {
-    await lock.release();
+    await redlock.release(lock);
   }
 }
 
@@ -419,6 +419,7 @@ async function clearUsersOnStartup() {
 }
 
 clearUsersOnStartup();
+
 
 
 
