@@ -16,6 +16,17 @@ const io = socketIo(server, {
   pingTimeout: 30000
 });
 
+app.use(express.static(path.join(__dirname, 'public')));
+
+const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+const redisClient = createClient({ url: redisUrl });
+
+redisClient.on('error', (err) => {
+  console.error('Redis Client Error', err);
+});
+
+redisClient.connect();
+
 const redlock = new Redlock([redisClient], {
   driftFactor: 0.01,
   retryCount: 3,
@@ -32,17 +43,6 @@ async function withRoomLock(roomId, callback) {
     await lock.release();
   }
 }
-
-app.use(express.static(path.join(__dirname, 'public')));
-
-const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-const redisClient = createClient({ url: redisUrl });
-
-redisClient.on('error', (err) => {
-  console.error('Redis Client Error', err);
-});
-
-redisClient.connect();
 
 // === ФУНКЦИИ ДЛЯ РАБОТЫ С ОТДЕЛЬНЫМИ КОМНАТАМИ ===
 
@@ -419,6 +419,7 @@ async function clearUsersOnStartup() {
 }
 
 clearUsersOnStartup();
+
 
 
 
