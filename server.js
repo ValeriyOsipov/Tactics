@@ -3,7 +3,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
 const { createClient } = require('redis');
-const { Redlock } = require('@redis/redlock');
+const Redlock = require('redlock');
 
 const app = express();
 const server = http.createServer(app);
@@ -25,11 +25,11 @@ const redlock = new Redlock([redisClient], {
 
 async function withRoomLock(roomId, callback) {
   const lockKey = `lock:room:${roomId}`;
-  const lock = await redlock.lock(lockKey, 1000);
+  const lock = await redlock.acquire([lockKey], 1000);
   try {
     return await callback();
   } finally {
-    await lock.unlock();
+    await lock.release();
   }
 }
 
@@ -419,6 +419,7 @@ async function clearUsersOnStartup() {
 }
 
 clearUsersOnStartup();
+
 
 
 
