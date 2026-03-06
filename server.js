@@ -2,7 +2,7 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
-const { createClient } = require('redis');
+const Redis = require('ioredis');
 const Redlock = require('redlock');
 
 const app = express();
@@ -19,7 +19,7 @@ const io = socketIo(server, {
 app.use(express.static(path.join(__dirname, 'public')));
 
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-const redisClient = createClient({ url: redisUrl });
+const redisClient = new Redis(redisUrl);
 
 redisClient.on('error', (err) => {
   console.error('Redis Client Error', err);
@@ -419,6 +419,7 @@ async function clearUsersOnStartup() {
 }
 
 clearUsersOnStartup();
+
 
 
 
