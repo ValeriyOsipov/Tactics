@@ -25,7 +25,7 @@ redisClient.on('error', (err) => {
   console.error('Redis Client Error', err);
 });
 
-redisClient.connect();
+//redisClient.connect();
 
 const redlock = new Redlock([redisClient], {
   driftFactor: 0.01,
@@ -419,6 +419,7 @@ async function clearUsersOnStartup() {
 }
 
 clearUsersOnStartup();
+
 
 
 
