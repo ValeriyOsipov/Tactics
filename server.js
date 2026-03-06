@@ -3,6 +3,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
 const { createClient } = require('redis');
+const { Redlock } = require('@redis/redlock');
 
 const app = express();
 const server = http.createServer(app);
@@ -14,6 +15,23 @@ const io = socketIo(server, {
   pingInterval: 60000,
   pingTimeout: 30000
 });
+
+const redlock = new Redlock([redisClient], {
+  driftFactor: 0.01,
+  retryCount: 3,
+  retryDelay: 200,
+  retryJitter: 200
+});
+
+async function withRoomLock(roomId, callback) {
+  const lockKey = `lock:room:${roomId}`;
+  const lock = await redlock.lock(lockKey, 1000);
+  try {
+    return await callback();
+  } finally {
+    await lock.unlock();
+  }
+}
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -114,6 +132,7 @@ io.on('connection', (socket) => {
   socket.on('join-room', async ({ roomId, userName, password }) => {
     socket.join(roomId);
 
+    await withRoomLock(roomId, async () => {
     let room = await getRoom(roomId);
 
     if (!room) {
@@ -164,6 +183,7 @@ io.on('connection', (socket) => {
     } catch (e) {
       console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (join-room):`, e);
     }
+    });
   });
 
 socket.on('add-object', async (data) => {
@@ -300,6 +320,7 @@ socket.on('add-vector', async (vectorObj) => {
   socket.on('disconnect', async () => {
     const roomId = socket.roomId;
     if (roomId) {
+      await withRoomLock(roomId, async () => {
       console.log(`[ROOM: ${roomId}] Пользователь ${socket.id} отключился`);
       let room = await getRoom(roomId);
       if (room) {
@@ -314,6 +335,7 @@ socket.on('add-vector', async (vectorObj) => {
           console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (disconnect):`, e);
         }
       }
+    });
     }
   });
 
@@ -397,6 +419,7 @@ async function clearUsersOnStartup() {
 }
 
 clearUsersOnStartup();
+
 
 
 
