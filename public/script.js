@@ -36,6 +36,8 @@ let vectorType = null;
 let vectorStartPoint = null;
 let tempVectorEnd = null;
 
+let holdClickInterval = null;
+
 const shipRadii = {
   'Des Moines': 10,
   'Salem': 8.5,
@@ -501,6 +503,10 @@ socket.on('click-effect', (data) => {
   ripples.push(new Ripple(data.x, data.y));
 });
 
+socket.on('hold-click-effect', (data) => {
+  ripples.push(new Ripple(data.x, data.y));
+});
+
 canvas.oncontextmenu = (e) => {
   e.preventDefault();
 
@@ -549,12 +555,59 @@ canvas.oncontextmenu = (e) => {
 };
 
 canvas.onmousedown = (e) => {
+  if (e.button === 0) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    let clickedOnObject = false;
+
+    for (let i = objects.length - 1; i >= 0; i--) {
+      const obj = objects[i];
+      let inBounds = false;
+
+      if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
+        const img = shipImages[obj.type][obj.color];
+        if (img && img.complete) {
+          inBounds = x >= obj.x - img.width / 2 && x <= obj.x + img.width / 2 &&
+                     y >= obj.y - img.height / 2 && y <= obj.y + img.height / 2;
+        }
+      } else if (obj.type === 'note') {
+        inBounds = x >= obj.x - 30 && x <= obj.x + 70 && y >= obj.y - 20 && y <= obj.y + 10;
+      } else if (obj.type.startsWith('vector-')) {
+        const centerX = (obj.startX + obj.endX) / 2;
+        const centerY = (obj.startY + obj.endY) / 2;
+
+        const dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+        inBounds = dist < 20;
+      }
+
+      if (inBounds) {
+        clickedOnObject = true;
+        break;
+      }
+    }
+
+    if (!clickedOnObject) {
+      if (holdClickInterval) {
+        clearInterval(holdClickInterval);
+      }
+
+      const emitEffect = () => {
+        socket.emit('hold-click-effect', { x, y });
+      };
+
+      emitEffect();
+
+      holdClickInterval = setInterval(emitEffect, 200);
+      return; 
+  }
+
   if (drawingVector) {
     return;
   }
 
   if (e.button === 2) return;
-
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
@@ -761,6 +814,10 @@ canvas.onmousemove = (e) => {
 };
 
 canvas.onmouseup = () => {
+  if (holdClickInterval) {
+    clearInterval(holdClickInterval);
+    holdClickInterval = null;
+  }
 };
 
 socket.on('drag-end-effect', (data) => {
@@ -768,6 +825,10 @@ socket.on('drag-end-effect', (data) => {
 });
 
 canvas.onmouseleave = () => {
+  if (holdClickInterval) {
+    clearInterval(holdClickInterval);
+    holdClickInterval = null;
+  }
   isDragging = false;
   selectedObject = null;
   canvas.style.cursor = 'default';
@@ -843,7 +904,6 @@ canvas.addEventListener('dragover', (e) => {
 });
 
 canvas.addEventListener('drop', (e) => {
-  // === ОТМЕНА РЕЖИМА ВЕКТОРА ===
   if (drawingVector) {
     drawingVector = false;
     vectorType = null;
@@ -1052,6 +1112,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
