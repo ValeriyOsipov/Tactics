@@ -284,6 +284,13 @@ socket.on('update-object', async (data) => {
     }
   });
 
+  socket.on('hold-click-effect', (data) => {
+    const roomId = socket.roomId;
+    if (roomId) {
+      socket.to(roomId).emit('hold-click-effect', data);
+    }
+  });
+  
   socket.on('drag-end-effect', (data) => {
     const roomId = socket.roomId;
     if (roomId) {
@@ -419,6 +426,7 @@ async function clearUsersOnStartup() {
 }
 
 clearUsersOnStartup();
+
 
 
 
