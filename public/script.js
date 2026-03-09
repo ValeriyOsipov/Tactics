@@ -280,6 +280,9 @@ function drawObjects() {
       ripples[i].draw(ctx);
     }
   }
+  ctx.fillStyle = 'red';
+  ctx.font = '12px Arial';
+  ctx.fillText(`Волн: ${ripples.length}`, 10, 20);
 }
 
 function animate() {
@@ -504,6 +507,7 @@ socket.on('click-effect', (data) => {
 });
 
 socket.on('hold-click-effect', (data) => {
+  console.log('Получен hold-click-effect', data); //лог
   ripples.push(new Ripple(data.x, data.y));
 });
 
@@ -595,11 +599,13 @@ canvas.onmousedown = (e) => {
 
       const emitEffect = () => {
         socket.emit('hold-click-effect', { x, y });
+        console.log('Отправка hold-click-effect', { x, y }); //лог
       };
 
       emitEffect();
 
       holdClickInterval = setInterval(emitEffect, 200);
+      return;
     }
   }
 
@@ -1113,6 +1119,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
