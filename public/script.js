@@ -600,7 +600,7 @@ canvas.onmousedown = (e) => {
       emitEffect();
 
       holdClickInterval = setInterval(emitEffect, 200);
-      return; 
+    }
   }
 
   if (drawingVector) {
@@ -608,6 +608,7 @@ canvas.onmousedown = (e) => {
   }
 
   if (e.button === 2) return;
+
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
@@ -1112,6 +1113,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
