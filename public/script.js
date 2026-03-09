@@ -604,7 +604,6 @@ canvas.onmousedown = (e) => {
       updateMousePos(e);
     
       const emitEffect = () => {
-        console.log('Отправка hold-click-effect', currentMousePos);
         socket.emit('hold-click-effect', currentMousePos);
       };
     
@@ -1146,6 +1145,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
