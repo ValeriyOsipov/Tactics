@@ -609,7 +609,7 @@ canvas.onmousedown = (e) => {
     
       emitEffect();
     
-      holdClickInterval = setInterval(emitEffect, 100);
+      holdClickInterval = setInterval(emitEffect, 300);
 
       const handleMouseMove = (e) => {
         updateMousePos(e);
@@ -1145,6 +1145,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
