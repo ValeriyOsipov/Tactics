@@ -280,9 +280,6 @@ function drawObjects() {
       ripples[i].draw(ctx);
     }
   }
-  ctx.fillStyle = 'red';
-  ctx.font = '12px Arial';
-  ctx.fillText(`Волн: ${ripples.length}`, 10, 20);
 }
 
 function animate() {
@@ -507,7 +504,6 @@ socket.on('click-effect', (data) => {
 });
 
 socket.on('hold-click-effect', (data) => {
-  console.log('Получен hold-click-effect', data); //лог
   ripples.push(new Ripple(data.x, data.y));
 });
 
@@ -596,15 +592,46 @@ canvas.onmousedown = (e) => {
       if (holdClickInterval) {
         clearInterval(holdClickInterval);
       }
-
-      const emitEffect = () => {
-        socket.emit('hold-click-effect', { x, y });
-        console.log('Отправка hold-click-effect', { x, y }); //лог
+    
+      let currentMousePos = { x: 0, y: 0 };
+    
+      const updateMousePos = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        currentMousePos.x = e.clientX - rect.left;
+        currentMousePos.y = e.clientY - rect.top;
       };
-
+    
+      updateMousePos(e);
+    
+      const emitEffect = () => {
+        console.log('Отправка hold-click-effect', currentMousePos);
+        socket.emit('hold-click-effect', currentMousePos);
+      };
+    
       emitEffect();
+    
+      holdClickInterval = setInterval(emitEffect, 100);
 
-      holdClickInterval = setInterval(emitEffect, 200);
+      const handleMouseMove = (e) => {
+        updateMousePos(e);
+      };
+    
+      document.addEventListener('mousemove', handleMouseMove);
+    
+      const stopHoldClick = () => {
+        if (holdClickInterval) {
+          console.log('Останавливаем interval при mouseup/mouseleave');
+          clearInterval(holdClickInterval);
+          holdClickInterval = null;
+        }
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', stopHoldClick);
+        document.removeEventListener('mouseleave', stopHoldClick);
+      };
+    
+      document.addEventListener('mouseup', stopHoldClick);
+      document.addEventListener('mouseleave', stopHoldClick);
+    
       return;
     }
   }
@@ -1119,6 +1146,7 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
 
 
 
