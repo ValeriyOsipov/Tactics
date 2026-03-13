@@ -378,7 +378,7 @@ socket.on('room-data', (data) => {
   tacticSelect.innerHTML = '';
   const tacticsList = Object.keys(allObjects[currentMap]);
   tacticsList.forEach(tacticName => {
-    if (typeof tacticName === 'string')
+    if (typeof tacticName === 'string') {
       const opt = document.createElement('option');
       opt.value = tacticName;
       opt.textContent = tacticName;
