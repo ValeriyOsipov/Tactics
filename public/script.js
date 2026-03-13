@@ -17,9 +17,14 @@ const ctx = canvas.getContext('2d');
 const roomDisplay = document.getElementById('room-id-display');
 const usersList = document.getElementById('users-list');
 const shipsPanel = document.getElementById('ships-panel');
+const tacticSelect = document.getElementById('tactic-select');
+const newTacticBtn = document.getElementById('new-tactic-btn');
+const deleteTacticBtn = document.getElementById('delete-tactic-btn');
+
 
 let allObjects = {};
 let currentMap = 'Греция.png';
+let currentTactic = 'Тактика 1';
 let objects = [];
 let selectedObject = null;
 let offsetX, offsetY;
@@ -365,23 +370,68 @@ socket.on('wrong-password', () => {
 
 socket.on('room-data', (data) => {
   allObjects = {};
-  allObjects[data.currentMap] = data.objects || [];
+  allObjects[data.currentMap] = { [data.currentMapTactic]: data.objects || [] };
   currentMap = data.currentMap;
-  objects = allObjects[currentMap];
+  currentTactic = data.currentTactic;
+  objects = allObjects[currentMap][currentTactic];
 
   mapSelect.value = currentMap;
+  tacticSelect.innerHTML = '';
+  (data.tacticsForCurrentMap || ['Тактика 1']).forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t;
+    opt.textContent = t;
+    tacticSelect.appendChild(opt);
+  });
+  tacticSelect.value = currentTactic;
+
   loadBackground(currentMap);
   updateUsersList(data.users);
 });
 
+// --- СМЕНА ТАКТИКИ ЧЕРЕЗ СЕЛЕКТОР ---
+tacticSelect.onchange = (e) => {
+  const selectedTactic = e.target.value;
+  if (selectedTactic && currentMap) {
+    socket.emit('switch-tactic', { mapName: currentMap, tacticName: selectedTactic });
+  }
+};
+
+newTacticBtn.onclick = () => {
+  const newTacticName = prompt('Введите название новой тактики:');
+  if (newTacticName) {
+    if (!isValidString(newTacticName)) {
+      alert('Название тактики должно содержать только латиницу, кириллицу, цифры и быть не длиннее 15 символов.');
+      return;
+    }
+    if ([...tacticSelect.options].some(opt => opt.value === newTacticName)) {
+      alert('Тактика с таким именем уже существует.');
+      return;
+    }
+    socket.emit('add-tactic', { mapName: currentMap, tacticName: newTacticName });
+  }
+};
+
+deleteTacticBtn.onclick = () => {
+  if (confirm('Вы точно хотите удалить текущую тактику?')) {
+    if (tacticSelect.options.length <= 1) {
+      alert('Нельзя удалить единственную тактику.');
+      return;
+    }
+    socket.emit('remove-tactic', { mapName: currentMap, tacticName: currentTactic });
+  }
+};
+
 socket.on('object-added', (obj) => {
   objects.push(obj);
-  allObjects[currentMap] = objects;
+  if (!allObjects[currentMap]) allObjects[currentMap] = {};
+  allObjects[currentMap][currentTactic] = objects;
 });
 
 socket.on('vector-added', (obj) => {
   objects.push(obj);
-  allObjects[currentMap] = objects;
+  if (!allObjects[currentMap]) allObjects[currentMap] = {};
+  allObjects[currentMap][currentTactic] = objects;
 });
 
 socket.on('object-updated', (data) => {
@@ -398,7 +448,6 @@ socket.on('object-updated', (data) => {
       if (data.label !== undefined) obj.label = data.label;
       if (data.rotation !== undefined) obj.rotation = data.rotation;
     }
-    allObjects[currentMap] = objects;
   }
 });
 
@@ -406,7 +455,6 @@ socket.on('object-removed', (data) => {
   const index = objects.findIndex(o => o.id === data.id);
   if (index !== -1) {
     objects.splice(index, 1);
-    allObjects[currentMap] = objects;
   }
 });
 
@@ -483,7 +531,8 @@ canvas.onclick = (e) => {
     if (!text) return;
     const obj = { id, type: 'note', x, y, text };
     objects.push(obj);
-    allObjects[currentMap] = objects;
+    if (!allObjects[currentMap]) allObjects[currentMap] = {};
+    allObjects[currentMap][currentTactic] = objects;
     socket.emit('add-object', obj);
   }
 };
@@ -977,7 +1026,8 @@ canvas.addEventListener('drop', (e) => {
 
   const obj = { id, type, x, y, color, label: '', rotation: 0 };
   objects.push(obj);
-  allObjects[currentMap] = objects;
+  if (!allObjects[currentMap]) allObjects[currentMap] = {};
+  allObjects[currentMap][currentTactic] = objects;
   socket.emit('add-object', obj);
 });
 
@@ -1003,11 +1053,65 @@ socket.on('map-objects', (data) => {
 socket.on('map-changed', (data) => {
   currentMap = data.map;
   mapSelect.value = currentMap;
-  if (!allObjects[data.map]) {
-    socket.emit('get-map-objects', { map: data.map });
+  tacticSelect.innerHTML = '';
+  (data.tacticsList || ['Тактика 1']).forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t;
+    opt.textContent = t;
+    tacticSelect.appendChild(opt);
+  });
+  currentTactic = data.currentTactic || 'Тактика 1';
+  tacticSelect.value = currentTactic;
+  if (allObjects[currentMap] && allObjects[currentMap][currentTactic]) {
+    objects = allObjects[currentMap][currentTactic];
   } else {
-    objects = allObjects[data.map];
-    loadBackground(currentMap);
+    objects = [];
+  }
+  loadBackground(currentMap);
+});
+
+socket.on('tactic-changed', (data) => {
+  if (data.map === currentMap) { 
+    currentTactic = data.tactic;
+    tacticSelect.value = currentTactic;
+    if (allObjects[currentMap] && allObjects[currentMap][currentTactic]) {
+      objects = allObjects[currentMap][currentTactic];
+    } else {
+      objects = [];
+    }
+    drawObjects();
+  }
+});
+
+socket.on('tactic-added', (data) => {
+  if (data.map === currentMap) {
+    tacticSelect.innerHTML = '';
+    data.tacticsList.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = t;
+      tacticSelect.appendChild(opt);
+    });
+    tacticSelect.value = data.tactic;
+    currentTactic = data.tactic;
+    objects = [];
+    drawObjects();
+  }
+});
+
+socket.on('tactic-removed', (data) => {
+  if (data.map === currentMap) {
+    const optionToRemove = tacticSelect.querySelector(`option[value="${data.tactic}"]`);
+    if (optionToRemove) optionToRemove.remove();
+
+    currentTactic = data.newTactic;
+    tacticSelect.value = currentTactic;
+    if (allObjects[currentMap] && allObjects[currentMap][currentTactic]) {
+      objects = allObjects[currentMap][currentTactic];
+    } else {
+      objects = [];
+    }
+    drawObjects();
   }
 });
 
