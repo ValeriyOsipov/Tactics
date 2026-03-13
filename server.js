@@ -166,6 +166,7 @@ socket.on('join-room', async ({ roomId, userName, password }) => {
       if (room.maps[currentMap] && Object.keys(room.maps[currentMap]).length > 0) {
         currentTactic = Object.keys(room.maps[currentMap])[0];
         room.currentTactic = currentTactic;
+        console.log(`[ROOM: ${roomId}] Текущая тактика изменена на существующую: ${currentTactic}`);
       } else {
         if (!room.maps[currentMap]) {
           room.maps[currentMap] = {};
@@ -177,7 +178,6 @@ socket.on('join-room', async ({ roomId, userName, password }) => {
     }
 
     socket.currentTactic = currentTactic;
-
     socket.roomId = roomId;
     socket.currentMap = currentMap;
 
@@ -189,6 +189,8 @@ socket.on('join-room', async ({ roomId, userName, password }) => {
       users: Object.values(room.users)
     });
 
+    socket.to(roomId).emit('user-joined', room.users[socket.id]);
+    
     try {
       await saveRoom(roomId, room);
       console.log(`[ROOM: ${roomId}] Состояние комнаты сохранено в Redis (join-room)`);
@@ -251,30 +253,48 @@ socket.on('update-object', async (data) => {
   }
 });
 
-  socket.on('change-map', async (data) => {
-    const roomId = socket.roomId;
-    if (roomId) {
-      console.log(`[ROOM: ${roomId}] Смена карты на: ${data.map}`);
-      let room = await getRoom(roomId);
-      if (room) {
-        if (!room.maps[data.map]) {
-          room.maps[data.map] = { objects: [] };
-        }
-        room.currentMap = data.map;
-        socket.currentMap = data.map;
-
-        socket.emit('map-changed', data);
-        socket.to(roomId).emit('map-changed', data);
-
-        try {
-          await saveRoom(roomId, room);
-          console.log(`[ROOM: ${roomId}] Состояние комнаты сохранено в Redis (change-map)`);
-        } catch (e) {
-          console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (change-map):`, e);
+socket.on('change-map', async (data) => {
+  const roomId = socket.roomId;
+  if (roomId) {
+    console.log(`[ROOM: ${roomId}] Смена карты на: ${data.map}`);
+    let room = await getRoom(roomId);
+    if (room) {
+      if (!room.maps[data.map]) {
+        room.maps[data.map] = { 'Тактика 1': [] };
+        console.log(`[ROOM: ${roomId}] Карта "${data.map}" инициализирована с тактикой "Тактика 1"`);
+      } else {
+        if (Object.keys(room.maps[data.map]).length === 0) {
+          room.maps[data.map]['Тактика 1'] = [];
         }
       }
+
+      room.currentMap = data.map;
+      const firstTactic = Object.keys(room.maps[data.map])[0];
+      room.currentTactic = firstTactic;
+
+      socket.currentMap = data.map;
+      socket.currentTactic = firstTactic;
+
+      socket.emit('map-changed', {
+        map: data.map,
+        tacticsList: Object.keys(room.maps[data.map]),
+        currentTactic: room.currentTactic
+      });
+      socket.to(roomId).emit('map-changed', {
+        map: data.map,
+        tacticsList: Object.keys(room.maps[data.map]),
+        currentTactic: room.currentTactic
+      });
+
+      try {
+        await saveRoom(roomId, room);
+        console.log(`[ROOM: ${roomId}] Состояние комнаты сохранено в Redis (change-map)`);
+      } catch (e) {
+        console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (change-map):`, e);
+      }
     }
-  });
+  }
+});
 
   socket.on('get-map-objects', async (data) => {
     const roomId = socket.roomId;
