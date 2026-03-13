@@ -378,10 +378,12 @@ socket.on('room-data', (data) => {
   tacticSelect.innerHTML = '';
   const tacticsList = Object.keys(allObjects[currentMap]);
   tacticsList.forEach(tacticName => {
-    const opt = document.createElement('option');
-    opt.value = tacticName;
-    opt.textContent = tacticName;
-    tacticSelect.appendChild(opt);
+    if (typeof tacticName === 'string')
+      const opt = document.createElement('option');
+      opt.value = tacticName;
+      opt.textContent = tacticName;
+      tacticSelect.appendChild(opt);
+    }
   });
   tacticSelect.value = currentTactic;
 
@@ -1069,15 +1071,6 @@ socket.on('map-changed', (data) => {
   }
   objects = allObjects[currentMap][currentTactic] || [];
   
-  data.tacticsList.forEach(tacticName => {
-    if (typeof tacticName === 'string') {
-      const opt = document.createElement('option');
-      opt.value = tacticName;
-      opt.textContent = tacticName;
-      tacticSelect.appendChild(opt);
-    }
-  });
-  
   loadBackground(currentMap);
 });
 
@@ -1097,15 +1090,6 @@ socket.on('tactic-changed', (data) => {
 socket.on('tactic-added', (data) => {
   if (data.map === currentMap) {
     tacticSelect.innerHTML = '';
-    data.tacticsList.forEach(t => {
-      const opt = document.createElement('option');
-      opt.value = t;
-      opt.textContent = t;
-      tacticSelect.appendChild(opt);
-    });
-    tacticSelect.value = data.tactic;
-    currentTactic = data.tactic;
-    objects = [];
     data.tacticsList.forEach(tacticName => {
       if (typeof tacticName === 'string') {
         const opt = document.createElement('option');
@@ -1114,6 +1098,10 @@ socket.on('tactic-added', (data) => {
         tacticSelect.appendChild(opt);
       }
     });
+    tacticSelect.value = data.tactic;
+    currentTactic = data.tactic;
+    objects = [];
+
     drawObjects();
   }
 });
@@ -1130,6 +1118,7 @@ socket.on('tactic-removed', (data) => {
     } else {
       objects = [];
     }
+
     data.tacticsList.forEach(tacticName => {
       if (typeof tacticName === 'string') {
         const opt = document.createElement('option');
@@ -1138,6 +1127,7 @@ socket.on('tactic-removed', (data) => {
         tacticSelect.appendChild(opt);
       }
     });
+    
     drawObjects();
   }
 });
