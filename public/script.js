@@ -369,18 +369,18 @@ socket.on('wrong-password', () => {
 });
 
 socket.on('room-data', (data) => {
-  allObjects = {};
-  allObjects[data.currentMap] = { [data.currentMapTactic]: data.objects || [] };
+  allObjects[data.currentMap] = data.tacticsData || { [data.currentTactic || 'Тактика 1']: [] };
   currentMap = data.currentMap;
-  currentTactic = data.currentTactic;
-  objects = allObjects[currentMap][currentTactic];
+  currentTactic = data.currentTactic || 'Тактика 1';
 
   mapSelect.value = currentMap;
+
   tacticSelect.innerHTML = '';
-  (data.tacticsForCurrentMap || ['Тактика 1']).forEach(t => {
+  const tacticsList = Object.keys(allObjects[currentMap]);
+  tacticsList.forEach(tacticName => {
     const opt = document.createElement('option');
-    opt.value = t;
-    opt.textContent = t;
+    opt.value = tacticName;
+    opt.textContent = tacticName;
     tacticSelect.appendChild(opt);
   });
   tacticSelect.value = currentTactic;
@@ -389,7 +389,6 @@ socket.on('room-data', (data) => {
   updateUsersList(data.users);
 });
 
-// --- СМЕНА ТАКТИКИ ЧЕРЕЗ СЕЛЕКТОР ---
 tacticSelect.onchange = (e) => {
   const selectedTactic = e.target.value;
   if (selectedTactic && currentMap) {
@@ -1053,20 +1052,32 @@ socket.on('map-objects', (data) => {
 socket.on('map-changed', (data) => {
   currentMap = data.map;
   mapSelect.value = currentMap;
+
   tacticSelect.innerHTML = '';
-  (data.tacticsList || ['Тактика 1']).forEach(t => {
+  (data.tacticsList || ['Тактика 1']).forEach(tacticName => {
     const opt = document.createElement('option');
-    opt.value = t;
-    opt.textContent = t;
+    opt.value = tacticName;
+    opt.textContent = tacticName;
     tacticSelect.appendChild(opt);
   });
+
   currentTactic = data.currentTactic || 'Тактика 1';
   tacticSelect.value = currentTactic;
-  if (allObjects[currentMap] && allObjects[currentMap][currentTactic]) {
-    objects = allObjects[currentMap][currentTactic];
-  } else {
-    objects = [];
+
+  if (!allObjects[currentMap]) {
+    allObjects[currentMap] = { [currentTactic]: [] };
   }
+  objects = allObjects[currentMap][currentTactic] || [];
+  
+  data.tacticsList.forEach(tacticName => {
+    if (typeof tacticName === 'string') {
+      const opt = document.createElement('option');
+      opt.value = tacticName;
+      opt.textContent = tacticName;
+      tacticSelect.appendChild(opt);
+    }
+  });
+  
   loadBackground(currentMap);
 });
 
@@ -1074,11 +1085,11 @@ socket.on('tactic-changed', (data) => {
   if (data.map === currentMap) { 
     currentTactic = data.tactic;
     tacticSelect.value = currentTactic;
-    if (allObjects[currentMap] && allObjects[currentMap][currentTactic]) {
-      objects = allObjects[currentMap][currentTactic];
-    } else {
-      objects = [];
+
+    if (!allObjects[currentMap]) {
+      allObjects[currentMap] = { [currentTactic]: [] };
     }
+    objects = allObjects[currentMap][currentTactic] || [];
     drawObjects();
   }
 });
@@ -1095,6 +1106,14 @@ socket.on('tactic-added', (data) => {
     tacticSelect.value = data.tactic;
     currentTactic = data.tactic;
     objects = [];
+    data.tacticsList.forEach(tacticName => {
+      if (typeof tacticName === 'string') {
+        const opt = document.createElement('option');
+        opt.value = tacticName;
+        opt.textContent = tacticName;
+        tacticSelect.appendChild(opt);
+      }
+    });
     drawObjects();
   }
 });
@@ -1111,6 +1130,14 @@ socket.on('tactic-removed', (data) => {
     } else {
       objects = [];
     }
+    data.tacticsList.forEach(tacticName => {
+      if (typeof tacticName === 'string') {
+        const opt = document.createElement('option');
+        opt.value = tacticName;
+        opt.textContent = tacticName;
+        tacticSelect.appendChild(opt);
+      }
+    });
     drawObjects();
   }
 });
