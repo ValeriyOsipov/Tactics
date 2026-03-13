@@ -203,53 +203,72 @@ socket.on('join-room', async ({ roomId, userName, password }) => {
 socket.on('add-object', async (data) => {
   const roomId = socket.roomId;
   const map = socket.currentMap;
-  if (roomId) {
-    let room = await getRoom(roomId);
-    if (room && room.maps[map]) {
-      if (data.rotation === undefined) data.rotation = 0;
+  const tactic = socket.currentTactic;
 
-      room.maps[map].objects.push(data);
-      socket.to(roomId).emit('object-added', data);
+  if (roomId && map && tactic) {
+    await withRoomLock(roomId, async () => {
+      let room = await getRoom(roomId);
+      if (room && room.maps[map] && room.maps[map][tactic]) {
+        if (data.rotation === undefined) data.rotation = 0;
 
-      try {
-        await saveRoom(roomId, room);
-        console.log(`[ROOM: ${roomId}] Состояние комнаты сохранено в Redis (add-object)`);
-      } catch (e) {
-        console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (add-object):`, e);
+        room.maps[map][tactic].push(data);
+
+        socket.to(roomId).emit('object-added', data);
+
+        try {
+          await saveRoom(roomId, room);
+          console.log(`[ROOM: ${roomId}] Объект добавлен в тактику "${tactic}" карты "${map}", состояние комнаты сохранено в Redis (add-object)`);
+        } catch (e) {
+          console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (add-object):`, e);
+        }
+      } else {
+        console.error(`[ROOM: ${roomId}] Не найдена карта "${map}" или тактика "${tactic}" при попытке добавить объект.`, room?.maps[map]);
       }
-    }
+    });
+  } else {
+    console.error('Не указан roomId, currentMap или currentTactic при add-object');
   }
 });
 
 socket.on('update-object', async (data) => {
   const roomId = socket.roomId;
   const map = socket.currentMap;
-  if (roomId) {
-    let room = await getRoom(roomId);
-    if (room && room.maps[map]) {
-      const obj = room.maps[map].objects.find(o => o.id === data.id);
-      if (obj) {
-        if (data.x !== undefined) obj.x = data.x;
-        if (data.y !== undefined) obj.y = data.y;
+  const tactic = socket.currentTactic;
 
-        if (data.label !== undefined) obj.label = data.label;
-        if (data.rotation !== undefined) obj.rotation = data.rotation;
+  if (roomId && map && tactic) {
+    await withRoomLock(roomId, async () => {
+      let room = await getRoom(roomId);
+      if (room && room.maps[map] && room.maps[map][tactic]) {
+        const obj = room.maps[map][tactic].find(o => o.id === data.id);
+        if (obj) {
+          if (data.x !== undefined) obj.x = data.x;
+          if (data.y !== undefined) obj.y = data.y;
 
-        if (data.startX !== undefined) obj.startX = data.startX;
-        if (data) obj.startY = data.startY;
-        if (data.endX !== undefined) obj.endX = data.endX;
-        if (data.endY !== undefined) obj.endY = data.endY;
+          if (data.label !== undefined) obj.label = data.label;
+          if (data.rotation !== undefined) obj.rotation = data.rotation;
 
-        socket.to(roomId).emit('object-updated', data);
+          if (data.startX !== undefined) obj.startX = data.startX;
+          if (data.startY !== undefined) obj.startY = data.startY;
+          if (data.endX !== undefined) obj.endX = data.endX;
+          if (data.endY !== undefined) obj.endY = data.endY;
 
-        try {
-          await saveRoom(roomId, room);
-          console.log(`[ROOM: ${roomId}] Состояние комнаты сохранено в Redis (update-object)`);
-        } catch (e) {
-          console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (update-object):`, e);
+          socket.to(roomId).emit('object-updated', data);
+
+          try {
+            await saveRoom(roomId, room);
+            console.log(`[ROOM: ${roomId}] Объект в тактике "${tactic}" карты "${map}" обновлён, состояние комнаты сохранено в Redis (update-object)`);
+          } catch (e) {
+            console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (update-object):`, e);
+          }
+        } else {
+          console.log(`[ROOM: ${roomId}] Объект с id ${data.id} не найден в тактике "${tactic}" карты "${map}".`);
         }
+      } else {
+        console.error(`[ROOM: ${roomId}] Не найдена карта "${map}" или тактика "${tactic}" при попытке обновить объект.`);
       }
-    }
+    });
+  } else {
+    console.error('Не указан roomId, currentMap или currentTactic при update-object');
   }
 });
 
@@ -379,29 +398,39 @@ socket.on('add-vector', async (vectorObj) => {
     }
   });
 
-  socket.on('remove-object', async (data) => {
-    const roomId = socket.roomId;
-    const map = socket.currentMap;
-    if (roomId) {
+socket.on('remove-object', async (data) => {
+  const roomId = socket.roomId;
+  const map = socket.currentMap;
+  const tactic = socket.currentTactic;
+
+  if (roomId && map && tactic) {
+    await withRoomLock(roomId, async () => {
       let room = await getRoom(roomId);
-      if (room && room.maps[map]) {
-        const index = room.maps[map].objects.findIndex(o => o.id === data.id);
+      if (room && room.maps[map] && room.maps[map][tactic]) {
+        const index = room.maps[map][tactic].findIndex(o => o.id === data.id);
         if (index !== -1) {
-          room.maps[map].objects.splice(index, 1);
+          room.maps[map][tactic].splice(index, 1);
 
           socket.to(roomId).emit('object-removed', { id: data.id });
 
           try {
             await saveRoom(roomId, room);
-            console.log(`[ROOM: ${roomId}] Объект удалён и состояние сохранено в Redis`);
+            console.log(`[ROOM: ${roomId}] Объект из тактики "${tactic}" карты "${map}" удалён, состояние сохранено в Redis`);
           } catch (e) {
-            console.error('Ошибка при сохранении в Redis:', e);
+            console.error(`[ROOM: ${roomId}] Ошибка при сохранении в Redis:`, e);
           }
+        } else {
+          console.log(`[ROOM: ${roomId}] Объект с id ${data.id} не найден для удаления в тактике "${tactic}" карты "${map}".`);
         }
+      } else {
+        console.error(`[ROOM: ${roomId}] Не найдена карта "${map}" или тактика "${tactic}" при попытке удалить объект.`);
       }
-    }
-  });
-
+    });
+  } else {
+    console.error('Не указан roomId, currentMap или currentTactic при remove-object');
+  }
+});
+  
 socket.on('switch-tactic', async (data) => {
   const { mapName, tacticName } = data;
   const roomId = socket.roomId;
