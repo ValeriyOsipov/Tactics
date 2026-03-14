@@ -1090,20 +1090,6 @@ socket.on('map-changed', (data) => {
   loadBackground(currentMap);
 });
 
-  currentTactic = data.currentTactic || 'Тактика 1';
-  tacticSelect.value = currentTactic;
-
-  if (allObjects[currentMap] && allObjects[currentMap][currentTactic]) {
-    objects = allObjects[currentMap][currentTactic];
-  } else {
-    objects = [];
-    if (!allObjects[currentMap]) allObjects[currentMap] = {};
-    allObjects[currentMap][currentTactic] = objects;
-  }
-
-  loadBackground(currentMap);
-});
-
 socket.on('tactic-objects', (data) => {
   const { map, tactic, objects: tacticObjects } = data;
 
