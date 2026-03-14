@@ -513,6 +513,7 @@ socket.on('object-removed', (data) => {
 });
 
 socket.on('add-custom-circle', async (circleObj) => {
+  console.log('DEBUG: Сервер получил add-custom-circle:', circleObj);
   const roomId = socket.roomId;
   const map = socket.currentMap;
   const tactic = socket.currentTactic;
