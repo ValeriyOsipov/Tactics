@@ -1121,14 +1121,12 @@ socket.on('tactic-changed', (data) => {
     if (allObjects[currentMap] && allObjects[currentMap][currentTactic]) {
       objects = allObjects[currentMap][currentTactic];
     } else {
+      objects = [];
       if (!allObjects[currentMap]) allObjects[currentMap] = {};
-      allObjects[currentMap][currentTactic] = [];
-      objects = allObjects[currentMap][currentTactic];
-      drawObjects();
-
+      allObjects[currentMap][currentTactic] = objects;
       socket.emit('get-objects-for-tactic', { map: currentMap, tactic: currentTactic });
     }
-
+    
     drawObjects();
   }
 });
