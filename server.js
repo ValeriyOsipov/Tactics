@@ -328,6 +328,28 @@ socket.on('change-map', async (data) => {
     }
   });
 
+  socket.on('get-objects-for-tactic', async (data) => {
+    const { map, tactic } = data;
+    const roomId = socket.roomId;
+  
+    if (roomId && map && tactic) {
+      let room = await getRoom(roomId);
+      if (room && room.maps[map] && room.maps[map][tactic]) {
+        socket.emit('tactic-objects', {
+          map: map,
+          tactic: tactic,
+          objects: room.maps[map][tactic]
+        });
+      } else {
+        console.error(`[ROOM: ${roomId}] Не найдена карта "${map}" или тактика "${tactic}" при запросе объектов.`);
+        socket.emit('tactic-objects', { map: map, tactic: tactic, objects: [] });
+      }
+    } else {
+      console.error('Запрос get-objects-for-tactic без необходимых параметров map или tactic.');
+      socket.emit('tactic-objects', { map: map, tactic: tactic, objects: [] });
+    }
+  });
+  
   socket.on('click-effect', (data) => {
     const roomId = socket.roomId;
     if (roomId) {
