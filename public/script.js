@@ -1274,6 +1274,33 @@ socket.on('tactic-removed', (data) => {
   }
 });
 
+socket.on('tactic-replaced', (data) => {
+  if (data.map === currentMap) {
+    const oldOption = tacticSelect.querySelector(`option[value="${data.oldTactic}"]`);
+    if (oldOption) {
+      oldOption.remove();
+      console.log(`[DEBUG] Удалена опция старой тактики "${data.oldTactic}" из селектора (tactic-replaced).`);
+    }
+
+    const newOpt = document.createElement('option');
+    newOpt.value = data.newTactic;
+    newOpt.textContent = data.newTactic;
+    tacticSelect.appendChild(newOpt);
+
+    currentTactic = data.newTactic;
+    tacticSelect.value = currentTactic;
+
+    if (allObjects[currentMap] && allObjects[currentMap][currentTactic]) {
+      objects = allObjects[currentMap][currentTactic];
+    } else {
+      if (!allObjects[currentMap]) allObjects[currentMap] = {};
+      allObjects[currentMap][currentTactic] = [];
+      objects = allObjects[currentMap][currentTactic];
+    }
+    drawObjects();
+  }
+});
+
 socket.on('connect', () => {
   console.log('Новое подключение, ID:', socket.id);
   if (currentRoomId && currentUserName) {
