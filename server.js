@@ -564,16 +564,91 @@ app.get('/ping', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 80;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+/ === ФУНКЦИЯ МИГРАЦИИ СТАРЫХ ДАННЫХ КАРТ В НОВЫЙ ФОРМАТ ТАКТИК ===
+async function migrateRoomsToNewTacticFormat() {
+  console.log('=== Запуск миграции комнат к новому формату тактик ===');
+  try {
+    const roomKeys = await redisClient.keys('room:*');
+    console.log(`Найдено ${roomKeys.length} комнат для проверки.`);
 
-process.on('SIGINT', async () => {
-  console.log('Сохраняем состояние перед завершением...');
-  await redisClient.quit();
-  process.exit(0);
-});
+    if (roomKeys.length === 0) {
+      console.log('Нет комнат для миграции.');
+      return;
+    }
+
+    for (const key of roomKeys) {
+      const roomId = key.replace('room:', '');
+      console.log(`Проверка комнаты: ${roomId}`);
+
+      let roomDataStr = await redisClient.get(key);
+      if (!roomDataStr) {
+        console.log(`  Комната ${key} пуста, пропускаем.`);
+        continue;
+      }
+
+      let room = JSON.parse(roomDataStr);
+      let migrationNeeded = false;
+
+      for (const mapName in room.maps) {
+        const mapData = room.maps[mapName];
+
+        if (typeof mapData === 'object' && mapData !== null && mapData.hasOwnProperty('objects') && Array.isArray(mapData.objects)) {
+            console.log(`  Найдена карта "${mapName}" в старом формате (объект с полем objects). Конвертируем...`);
+            const oldObjects = mapData.objects;
+            delete room.maps[mapName].objects;
+            if (Object.keys(room.maps[mapName]).length === 0) {
+                room.maps[mapName] = {
+                  'Тактика 1': oldObjects
+                };
+            } else {
+                room.maps[mapName] = {
+                  'Тактика 1': oldObjects
+                };
+                console.warn(`  Предупреждение: Карта "${mapName}" имела неожиданные поля besides 'objects'. Они будут потеряны при миграции.`);
+            }
+            migrationNeeded = true;
+            console.log(`  Карта "${mapName}" преобразована в новый формат: { "Тактика 1": [...] }`);
+        }
+        else if (typeof mapData === 'object' && mapData !== null) {
+            const keys = Object.keys(mapData);
+            let foundObjectsField = false;
+            for (const keyName of keys) {
+              if (keyName === 'objects') {
+                 console.error(`  ОШИБКА: Карта "${mapName}" имеет поле 'objects', но оно не в корне объекта. Структура:`, mapData);
+                 foundObjectsField = true;
+                 break;
+              }
+            }
+            if (!foundObjectsField) {
+                 console.log(`  Карта "${mapName}" уже в новом формате или имеет неизвестный формат (ключи: ${keys.join(', ')}).`);
+                 if (!room.currentTactic && keys.length > 0) {
+                     room.currentTactic = keys[0];
+                     console.log(`  Установлена currentTactic: ${room.currentTactic} для комнаты ${roomId}, карта ${mapName}`);
+                     migrationNeeded = true;
+                 }
+            }
+        } else {
+          console.error(`  ОШИБКА: Карта "${mapName}" имеет неожиданный тип данных:`, typeof mapData, mapData);
+        }
+      }
+
+      if (migrationNeeded) {
+        try {
+          await redisClient.set(key, JSON.stringify(room));
+          console.log(`  Комната ${roomId} обновлена и сохранена.`);
+        } catch (saveErr) {
+          console.error(`  ОШИБКА при сохранении комнаты ${roomId}:`, saveErr);
+        }
+      } else {
+         console.log(`  Комната ${roomId} не требовала миграции.`);
+      }
+    }
+
+    console.log('=== Завершена миграция комнат к новому формату тактик ===');
+  } catch (e) {
+    console.error('=== ОШИБКА при миграции комнат ===', e);
+  }
+}
 
 async function clearUsersOnStartup() {
   try {
@@ -599,8 +674,26 @@ async function clearUsersOnStartup() {
   }
 }
 
-clearUsersOnStartup();
+migrateRoomsToNewTacticFormat().then(() => {
+    console.log('Миграция завершена, запускаю очистку пользователей...');
+    return clearUsersOnStartup();
+}).then(() => {
+    console.log('Сервер готов к запуску.');
+}).catch(err => {
+    console.error('Критическая ошибка при подготовке сервера:', err);
+    process.exit(1);
+});
 
+const PORT = process.env.PORT || 80;
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+process.on('SIGINT', async () => {
+  console.log('Сохраняем состояние перед завершением...');
+  await redisClient.quit();
+  process.exit(0);
+});
 
 
 
