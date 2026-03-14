@@ -398,7 +398,6 @@ document.querySelectorAll('.ship-item').forEach(item => {
       vectorType = type;
       vectorStartPoint = null;
       tempVectorEnd = null;
-      console.log('Режим рисования вектора:', type);
     }
   });
 });
@@ -426,7 +425,6 @@ socket.on('wrong-password', () => {
 });
 
 socket.on('room-data', (data) => {
-  console.log('DEBUG: room-data получен:', data);
   if (!allObjects[data.currentMap]) {
     allObjects[data.currentMap] = {};
   }
@@ -529,7 +527,6 @@ socket.on('user-left', (userId) => {
 });
 
 function updateUsersList(users) {
-  console.log('DEBUG: updateUsersList вызвана с:', users);
 
   if (!usersList) {
     console.error('ERROR: Элемент с id "users-list" не найден в DOM!');
@@ -539,9 +536,7 @@ function updateUsersList(users) {
   usersList.innerHTML = '';
 
   if (users && Array.isArray(users)) {
-    console.log('DEBUG: users - массив, длина:', users.length);
     users.forEach(user => {
-      console.log('DEBUG: Добавляем пользователя:', user);
       const li = document.createElement('li');
       li.id = `user-${user.id}`;
       li.textContent = user.name;
@@ -617,7 +612,6 @@ canvas.onclick = (e) => {
             color: currentCircleColor
           };
           socket.emit('add-custom-circle', circleObj);
-          console.log('DEBUG: Отправлена команда на добавление окружности:', circleObj);
         } else if (circleActionMode === 'remove_all') {
           socket.emit('remove-all-custom-circles', { parentId: obj.id });
         }
@@ -1319,7 +1313,6 @@ socket.on('tactic-replaced', (data) => {
 socket.on('connect', () => {
   console.log('Новое подключение, ID:', socket.id);
   if (currentRoomId && currentUserName) {
-    console.log('Отправляем join-room при connect...');
     socket.emit('join-room', {
       roomId: currentRoomId,
       userName: currentUserName,
