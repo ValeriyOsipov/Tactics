@@ -440,7 +440,7 @@ socket.on('add-custom-circle', async (circleObj) => {
       let room = await getRoom(roomId);
       if (room && room.maps[map] && room.maps[map][tactic]) {
         room.maps[map][tactic].push(circleObj);
-        socket.to(roomId).emit('object-added', circleObj);
+        io.to(roomId).emit('object-added', circleObj);
         console.log(`[ROOM: ${roomId}] Кастомная окружность добавлена в тактику "${tactic}" карты "${map}"`);
 
         try {
@@ -467,7 +467,7 @@ socket.on('remove-all-custom-circles', async (data) => {
         room.maps[map][tactic] = room.maps[map][tactic].filter(obj => !(obj.type.startsWith('custom-circle-') && obj.parentId === parentId));
 
         circlesToRemove.forEach(circle => {
-          socket.to(roomId).emit('object-removed', { id: circle.id });
+          io.to(roomId).emit('object-removed', { id: circle.id });
         });
 
         console.log(`[ROOM: ${roomId}] Удалено ${circlesToRemove.length} кастомных окружностей с корабля ${parentId} в тактике "${tactic}" карты "${map}"`);
