@@ -1276,42 +1276,39 @@ socket.on('tactic-removed', (data) => {
 
 socket.on('tactic-replaced', (data) => {
   if (data.map === currentMap) {
-    console.log('[DEBUG tactic-replaced] Получено:', data);
+
+    if (data.oldTactic === data.newTactic) {
+        if (allObjects[currentMap]) {
+            allObjects[currentMap][data.newTactic] = [];
+        }
+    }
+
     const oldOption = tacticSelect.querySelector(`option[value="${data.oldTactic}"]`);
     if (oldOption) {
       oldOption.remove();
-      console.log(`[DEBUG] Удалена опция старой тактики "${data.oldTactic}" из селектора (tactic-replaced).`);
     } else {
-        console.log(`[DEBUG] Опция старой тактики "${data.oldTactic}" не найдена для удаления (tactic-replaced).`);
     }
 
     let newOpt = tacticSelect.querySelector(`option[value="${data.newTactic}"]`);
     if (newOpt) {
-        console.log(`[DEBUG] Опция новой тактики "${data.newTactic}" уже существует в селекторе.`);
     } else {
         newOpt = document.createElement('option');
         newOpt.value = data.newTactic;
         newOpt.textContent = data.newTactic;
         tacticSelect.appendChild(newOpt);
-        console.log(`[DEBUG] Добавлена опция новой тактики "${data.newTactic}" в селектор (tactic-replaced).`);
     }
 
     currentTactic = data.newTactic;
     tacticSelect.value = currentTactic;
-    console.log(`[DEBUG tactic-replaced] currentTactic установлен на: ${currentTactic}`);
 
     if (allObjects[currentMap] && allObjects[currentMap][currentTactic]) {
       objects = allObjects[currentMap][currentTactic];
-      console.log(`[DEBUG tactic-replaced] objects обновлён из allObjects, длина: ${objects.length}`);
     } else {
       if (!allObjects[currentMap]) allObjects[currentMap] = {};
       allObjects[currentMap][currentTactic] = [];
       objects = allObjects[currentMap][currentTactic];
-      console.log(`[DEBUG tactic-replaced] objects инициализирован как пустой массив, длина: ${objects.length}`);
     }
-    console.log(`[DEBUG tactic-replaced] Перед drawObjects objects =`, objects);
     drawObjects();
-    console.log(`[DEBUG tactic-replaced] drawObjects вызван.`);
   }
 });
 
