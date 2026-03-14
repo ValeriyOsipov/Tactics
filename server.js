@@ -177,6 +177,8 @@ socket.on('join-room', async ({ roomId, userName, password }) => {
       }
     }
 
+    room.users[socket.id] = { id: socket.id, name: userName || `User ${Object.keys(room.users).length + 1}` };
+    
     socket.currentTactic = currentTactic;
     socket.roomId = roomId;
     socket.currentMap = currentMap;
