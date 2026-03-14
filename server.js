@@ -693,21 +693,3 @@ process.on('SIGINT', async () => {
   await redisClient.quit();
   process.exit(0);
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
