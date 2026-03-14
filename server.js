@@ -645,32 +645,49 @@ socket.on('remove-tactic', async (data) => {
         let newTactic;
 
         if (tacticsList.length <= 1) {
+          console.log(`[ROOM: ${roomId}] Удаление последней тактики "${tacticName}". Создаём и переключаемся на 'Тактика 1'.`);
           delete room.maps[mapName][tacticName];
           const newDefaultTactic = 'Тактика 1';
           room.maps[mapName][newDefaultTactic] = [];
           room.currentTactic = newDefaultTactic;
           newTactic = newDefaultTactic;
+
+          io.to(roomId).emit('tactic-replaced', {
+            map: mapName,
+            oldTactic: tacticName,
+            newTactic: newTactic,
+            tacticsList: Object.keys(room.maps[mapName])
+          });
+
         } else {
           delete room.maps[mapName][tacticName];
           const remainingTactics = Object.keys(room.maps[mapName]);
           newTactic = remainingTactics[0];
           room.currentTactic = newTactic;
+
+          io.to(roomId).emit('tactic-removed', { map: mapName, tactic: tacticName, tacticsList: Object.keys(room.maps[mapName]), newTactic: newTactic });
+          io.to(roomId).emit('tactic-changed', { map: mapName, tactic: newTactic });
         }
 
         const socketsInRoom = await io.in(roomId).fetchSockets();
         for (const sock of socketsInRoom) {
-          sock.currentTactic = newTactic;
+          if(sock.currentMap === mapName) {
+              sock.currentTactic = newTactic;
+          }
         }
-
-        io.to(roomId).emit('tactic-removed', { map: mapName, tactic: tacticName, tacticsList: Object.keys(room.maps[mapName]), newTactic: newTactic });
-        io.to(roomId).emit('tactic-changed', { map: mapName, tactic: newTactic });
 
         try {
           await saveRoom(roomId, room);
-          console.log(`[ROOM: ${roomId}] Тактика ${tacticName} удалена для карты ${mapName}, currentTactic обновлён у всех.`);
+          if (tacticsList.length <= 1) {
+             console.log(`[ROOM: ${roomId}] Последняя тактика "${tacticName}" заменена на "${newTactic}", currentTactic обновлён у всех.`);
+          } else {
+             console.log(`[ROOM: ${roomId}] Тактика "${tacticName}" удалена для карты ${mapName}, currentTactic обновлён у всех на '${newTactic}'.`);
+          }
         } catch (e) {
           console.error(`[ROOM: ${roomId}] Ошибка при сохранении комнаты (remove-tactic):`, e);
         }
+      } else {
+           console.error(`[ROOM: ${roomId}] remove-tactic: Карта "${mapName}" или тактика "${tacticName}" не найдены в данных комнаты.`, room?.maps[mapName]);
       }
     });
   }
