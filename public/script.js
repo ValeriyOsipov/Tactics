@@ -369,15 +369,22 @@ socket.on('wrong-password', () => {
 });
 
 socket.on('room-data', (data) => {
-  allObjects[data.currentMap] = data.tacticsData || { [data.currentTactic || 'Тактика 1']: [] };
+  if (!allObjects[data.currentMap]) {
+    allObjects[data.currentMap] = {};
+  }
+  allObjects[data.currentMap][data.currentTactic] = data.objects || [];
+
   currentMap = data.currentMap;
   currentTactic = data.currentTactic || 'Тактика 1';
+
+  objects = allObjects[currentMap][currentTactic];
+
+  console.log('DEBUG room-data: objects =', objects, 'allObjects[currentMap][currentTactic] =', allObjects[currentMap][currentTactic]);
 
   mapSelect.value = currentMap;
 
   tacticSelect.innerHTML = '';
-  const tacticsList = Object.keys(allObjects[currentMap]);
-  tacticsList.forEach(tacticName => {
+  (data.tacticsForCurrentMap || ['Тактика 1']).forEach(tacticName => {
     if (typeof tacticName === 'string') {
       const opt = document.createElement('option');
       opt.value = tacticName;
@@ -426,13 +433,11 @@ deleteTacticBtn.onclick = () => {
 socket.on('object-added', (obj) => {
   objects.push(obj);
   if (!allObjects[currentMap]) allObjects[currentMap] = {};
-  allObjects[currentMap][currentTactic] = objects;
 });
 
 socket.on('vector-added', (obj) => {
   objects.push(obj);
   if (!allObjects[currentMap]) allObjects[currentMap] = {};
-  allObjects[currentMap][currentTactic] = objects;
 });
 
 socket.on('object-updated', (data) => {
@@ -1055,34 +1060,45 @@ socket.on('map-changed', (data) => {
   currentMap = data.map;
   mapSelect.value = currentMap;
 
-  tacticSelect.innerHTML = '';
+  tacticSelect.innerHTML = ''; // Очищаем
   (data.tacticsList || ['Тактика 1']).forEach(tacticName => {
-    const opt = document.createElement('option');
-    opt.value = tacticName;
-    opt.textContent = tacticName;
-    tacticSelect.appendChild(opt);
+    if (typeof tacticName === 'string') {
+      const opt = document.createElement('option');
+      opt.value = tacticName;
+      opt.textContent = tacticName;
+      tacticSelect.appendChild(opt);
+    }
   });
 
   currentTactic = data.currentTactic || 'Тактика 1';
   tacticSelect.value = currentTactic;
 
-  if (!allObjects[currentMap]) {
-    allObjects[currentMap] = { [currentTactic]: [] };
+  if (allObjects[currentMap] && allObjects[currentMap][currentTactic]) {
+    objects = allObjects[currentMap][currentTactic];
+  } else {
+    objects = [];
+    if (!allObjects[currentMap]) allObjects[currentMap] = {};
+    allObjects[currentMap][currentTactic] = objects;
   }
-  objects = allObjects[currentMap][currentTactic] || [];
-  
+
   loadBackground(currentMap);
 });
 
 socket.on('tactic-changed', (data) => {
-  if (data.map === currentMap) { 
+  if (data.map === currentMap) {
     currentTactic = data.tactic;
     tacticSelect.value = currentTactic;
 
-    if (!allObjects[currentMap]) {
-      allObjects[currentMap] = { [currentTactic]: [] };
+    if (allObjects[currentMap] && allObjects[currentMap][currentTactic]) {
+      objects = allObjects[currentMap][currentTactic];
+    } else {
+      objects = [];
+      if (!allObjects[currentMap]) allObjects[currentMap] = {};
+      allObjects[currentMap][currentTactic] = objects;
     }
-    objects = allObjects[currentMap][currentTactic] || [];
+
+    console.log('DEBUG tactic-changed: objects =', objects, 'allObjects[currentMap][currentTactic] =', allObjects[currentMap][currentTactic]);
+
     drawObjects();
   }
 });
