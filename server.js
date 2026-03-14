@@ -286,6 +286,7 @@ socket.on('change-map', async (data) => {
       } else {
         if (Object.keys(room.maps[data.map]).length === 0) {
           room.maps[data.map]['Тактика 1'] = [];
+          console.log(`[ROOM: ${roomId}] Карта "${data.map}" пуста, добавлена "Тактика 1"`);
         }
       }
 
@@ -296,12 +297,13 @@ socket.on('change-map', async (data) => {
       socket.currentMap = data.map;
       socket.currentTactic = firstTactic;
 
-      socket.emit('map-changed', {
-        map: data.map,
-        tacticsList: Object.keys(room.maps[data.map]),
-        currentTactic: room.currentTactic
-      });
-      socket.to(roomId).emit('map-changed', {
+      const socketsInRoom = await io.in(roomId).fetchSockets();
+      for (const sock of socketsInRoom) {
+        sock.currentMap = data.map;
+        sock.currentTactic = firstTactic;
+      }
+
+      io.to(roomId).emit('map-changed', {
         map: data.map,
         tacticsList: Object.keys(room.maps[data.map]),
         currentTactic: room.currentTactic
@@ -465,15 +467,17 @@ socket.on('switch-tactic', async (data) => {
       let room = await getRoom(roomId);
       if (room && room.maps[mapName] && room.maps[mapName][tacticName]) {
         room.currentTactic = tacticName;
-        socket.currentTactic = tacticName; 
 
-        socket.to(roomId).emit('tactic-changed', { map: mapName, tactic: tacticName });
+        const socketsInRoom = await io.in(roomId).fetchSockets();
+        for (const sock of socketsInRoom) {
+          sock.currentTactic = tacticName;
+        }
 
-        socket.emit('tactic-changed', { map: mapName, tactic: tacticName });
+        io.to(roomId).emit('tactic-changed', { map: mapName, tactic: tacticName });
 
         try {
           await saveRoom(roomId, room);
-          console.log(`[ROOM: ${roomId}] Тактика изменена на ${tacticName} для карты ${mapName}, socket.currentTactic обновлён.`);
+          console.log(`[ROOM: ${roomId}] Тактика изменена на ${tacticName} для карты ${mapName}, socket.currentTactic обновлён у всех.`);
         } catch (e) {
           console.error(`[ROOM: ${roomId}] Ошибка при сохранении комнаты (switch-tactic):`, e);
         }
@@ -500,15 +504,17 @@ socket.on('add-tactic', async (data) => {
           room.currentTactic = tacticName;
           socket.currentTactic = tacticName;
 
-          socket.to(roomId).emit('tactic-added', { map: mapName, tactic: tacticName, tacticsList: Object.keys(room.maps[mapName]) });
-          socket.emit('tactic-added', { map: mapName, tactic: tacticName, tacticsList: Object.keys(room.maps[mapName]) });
+          const socketsInRoom = await io.in(roomId).fetchSockets();
+          for (const sock of socketsInRoom) {
+            sock.currentTactic = tacticName;
+          }
 
-          socket.to(roomId).emit('tactic-changed', { map: mapName, tactic: tacticName });
-          socket.emit('tactic-changed', { map: mapName, tactic: tacticName });
+          io.to(roomId).emit('tactic-added', { map: mapName, tactic: tacticName, tacticsList: Object.keys(room.maps[mapName]) });
+          io.to(roomId).emit('tactic-changed', { map: mapName, tactic: tacticName });
 
           try {
             await saveRoom(roomId, room);
-            console.log(`[ROOM: ${roomId}] Новая тактика ${tacticName} добавлена для карты ${mapName}`);
+            console.log(`[ROOM: ${roomId}] Новая тактика ${tacticName} добавлена для карты ${mapName}, currentTactic обновлён у всех.`);
           } catch (e) {
             console.error(`[ROOM: ${roomId}] Ошибка при сохранении комнаты (add-tactic):`, e);
           }
@@ -532,30 +538,32 @@ socket.on('remove-tactic', async (data) => {
       let room = await getRoom(roomId);
       if (room && room.maps[mapName] && room.maps[mapName][tacticName]) {
         const tacticsList = Object.keys(room.maps[mapName]);
+        let newTactic;
+
         if (tacticsList.length <= 1) {
           delete room.maps[mapName][tacticName];
           const newDefaultTactic = 'Тактика 1';
           room.maps[mapName][newDefaultTactic] = [];
           room.currentTactic = newDefaultTactic;
-          socket.currentTactic = newDefaultTactic;
+          newTactic = newDefaultTactic;
         } else {
           delete room.maps[mapName][tacticName];
-
           const remainingTactics = Object.keys(room.maps[mapName]);
-          const newTactic = remainingTactics[0];
+          newTactic = remainingTactics[0];
           room.currentTactic = newTactic;
-          socket.currentTactic = newTactic;
         }
 
-        socket.to(roomId).emit('tactic-removed', { map: mapName, tactic: tacticName, tacticsList: Object.keys(room.maps[mapName]), newTactic: room.currentTactic });
-        socket.emit('tactic-removed', { map: mapName, tactic: tacticName, tacticsList: Object.keys(room.maps[mapName]), newTactic: room.currentTactic });
+        const socketsInRoom = await io.in(roomId).fetchSockets();
+        for (const sock of socketsInRoom) {
+          sock.currentTactic = newTactic;
+        }
 
-        socket.to(roomId).emit('tactic-changed', { map: mapName, tactic: room.currentTactic });
-        socket.emit('tactic-changed', { map: mapName, tactic: room.currentTactic });
+        io.to(roomId).emit('tactic-removed', { map: mapName, tactic: tacticName, tacticsList: Object.keys(room.maps[mapName]), newTactic: newTactic });
+        io.to(roomId).emit('tactic-changed', { map: mapName, tactic: newTactic });
 
         try {
           await saveRoom(roomId, room);
-          console.log(`[ROOM: ${roomId}] Тактика ${tacticName} удалена для карты ${mapName}`);
+          console.log(`[ROOM: ${roomId}] Тактика ${tacticName} удалена для карты ${mapName}, currentTactic обновлён у всех.`);
         } catch (e) {
           console.error(`[ROOM: ${roomId}] Ошибка при сохранении комнаты (remove-tactic):`, e);
         }
@@ -563,7 +571,7 @@ socket.on('remove-tactic', async (data) => {
     });
   }
 });
-
+  
 function isValidString(str) {
   if (typeof str !== 'string' || str.length > 15) return false;
   return /^[a-zA-Zа-яА-ЯёЁ0-9 ]*$/.test(str);
