@@ -1140,25 +1140,21 @@ socket.on('tactic-added', (data) => {
 socket.on('tactic-removed', (data) => {
   if (data.map === currentMap) {
     const optionToRemove = tacticSelect.querySelector(`option[value="${data.tactic}"]`);
-    if (optionToRemove) optionToRemove.remove();
+    if (optionToRemove) {
+      optionToRemove.remove();
+    }
 
     currentTactic = data.newTactic;
     tacticSelect.value = currentTactic;
+
     if (allObjects[currentMap] && allObjects[currentMap][currentTactic]) {
       objects = allObjects[currentMap][currentTactic];
     } else {
       objects = [];
+      if (!allObjects[currentMap]) allObjects[currentMap] = {};
+      allObjects[currentMap][currentTactic] = objects;
+      socket.emit('get-objects-for-tactic', { map: currentMap, tactic: currentTactic });
     }
-
-    data.tacticsList.forEach(tacticName => {
-      if (typeof tacticName === 'string') {
-        const opt = document.createElement('option');
-        opt.value = tacticName;
-        opt.textContent = tacticName;
-        tacticSelect.appendChild(opt);
-      }
-    });
-    
     drawObjects();
   }
 });
