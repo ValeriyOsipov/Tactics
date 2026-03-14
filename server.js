@@ -564,7 +564,6 @@ app.get('/ping', async (req, res) => {
   }
 });
 
-// === ФУНКЦИЯ МИГРАЦИИ СТАРЫХ ДАННЫХ КАРТ В НОВЫЙ ФОРМАТ ТАКТИК ===
 async function migrateRoomsToNewTacticFormat() {
   console.log('=== Запуск миграции комнат к новому формату тактик ===');
   try {
