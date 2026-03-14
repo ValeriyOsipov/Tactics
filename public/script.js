@@ -182,6 +182,10 @@ class Ripple {
 }
 
 function drawObjects() {
+  if (!Array.isArray(objects)) {
+    console.error('CRITICAL ERROR: objects is not an array in drawObjects!', objects);
+    objects = [];
+  }
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   if (bgLoaded) {
