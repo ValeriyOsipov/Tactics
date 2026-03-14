@@ -258,24 +258,22 @@ socket.on('update-object', async (data) => {
           if (data.endY !== undefined) obj.endY = data.endY;
 
           const isShip = (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es');
+          let circlesToUpdate = [];
           if (isShip && (oldX !== obj.x || oldY !== obj.y)) {
             room.maps[map][tactic].forEach(otherObj => {
               if (otherObj.type.startsWith('custom-circle-') && otherObj.parentId === obj.id) {
                 otherObj.x = obj.x;
                 otherObj.y = obj.y;
+                circlesToUpdate.push(otherObj);
               }
             });
           }
 
           io.to(roomId).emit('object-updated', data);
 
-          if (isShip) {
-             room.maps[map][tactic].forEach(otherObj => {
-               if (otherObj.type.startsWith('custom-circle-') && otherObj.parentId === obj.id) {
-                 io.to(roomId).emit('object-updated', { id: otherObj.id, x: otherObj.x, y: otherObj.y });
-               }
-             });
-          }
+          circlesToUpdate.forEach(updatedCircle => {
+             io.to(roomId).emit('object-updated', { id: updatedCircle.id, x: updatedCircle.x, y: updatedCircle.y });
+          });
 
           try {
             await saveRoom(roomId, room);
@@ -516,14 +514,13 @@ socket.on('remove-object', async (data) => {
         const objIndex = room.maps[map][tactic].findIndex(o => o.id === objectIdToRemove);
 
         if (objIndex !== -1) {
-          const objToRemove = room.maps[map][tactic][objIndex];
-
+          const objToRemove = room.maps[map][tactic][objIndex]
           room.maps[map][tactic].splice(objIndex, 1);
 
           const isShip = (objToRemove.type.startsWith('l') || objToRemove.type.startsWith('k') || objToRemove.type === 'es');
-
+          let circlesToRemove = [];
           if (isShip) {
-            const circlesToRemove = [];
+
             for (let i = room.maps[map][tactic].length - 1; i >= 0; i--) {
               const otherObj = room.maps[map][tactic][i];
               if (otherObj.type.startsWith('custom-circle-') && otherObj.parentId === objToRemove.id) {
@@ -543,7 +540,7 @@ socket.on('remove-object', async (data) => {
           io.to(roomId).emit('object-removed', { id: objToRemove.id });
 
           circlesToRemove.forEach(circle => {
-            io.to(roomId).emit('object-removed', { id: circle.id });
+             io.to(roomId).emit('object-removed', { id: circle.id });
           });
 
           try {
