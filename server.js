@@ -161,7 +161,7 @@ socket.on('join-room', async ({ roomId, userName, password }) => {
 
     let currentMap = room.currentMap;
     let currentTactic = room.currentTactic;
-
+    
     if (!room.maps[currentMap] || !room.maps[currentMap][currentTactic]) {
       if (room.maps[currentMap] && Object.keys(room.maps[currentMap]).length > 0) {
         currentTactic = Object.keys(room.maps[currentMap])[0];
@@ -183,6 +183,8 @@ socket.on('join-room', async ({ roomId, userName, password }) => {
     socket.roomId = roomId;
     socket.currentMap = currentMap;
 
+    console.log(`Пользователь ${socket.id} (${userName}) зашёл в комнату ${roomId}`);
+    
     socket.emit('room-data', {
       objects: room.maps[currentMap][currentTactic],
       currentMap: currentMap,
