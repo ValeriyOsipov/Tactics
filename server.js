@@ -430,6 +430,58 @@ socket.on('add-vector', async (vectorObj) => {
     }
   });
 
+socket.on('add-custom-circle', async (circleObj) => {
+  const roomId = socket.roomId;
+  const map = socket.currentMap;
+  const tactic = socket.currentTactic;
+
+  if (roomId && map && tactic) {
+    await withRoomLock(roomId, async () => {
+      let room = await getRoom(roomId);
+      if (room && room.maps[map] && room.maps[map][tactic]) {
+        room.maps[map][tactic].push(circleObj);
+        socket.to(roomId).emit('object-added', circleObj);
+        console.log(`[ROOM: ${roomId}] Кастомная окружность добавлена в тактику "${tactic}" карты "${map}"`);
+
+        try {
+          await saveRoom(roomId, room);
+        } catch (e) {
+          console.error(`[ROOM: ${roomId}] Ошибка при сохранении комнаты (add-custom-circle):`, e);
+        }
+      }
+    });
+  }
+});
+
+socket.on('remove-all-custom-circles', async (data) => {
+  const { parentId } = data;
+  const roomId = socket.roomId;
+  const map = socket.currentMap;
+  const tactic = socket.currentTactic;
+
+  if (roomId && map && tactic && parentId) {
+    await withRoomLock(roomId, async () => {
+      let room = await getRoom(roomId);
+      if (room && room.maps[map] && room.maps[map][tactic]) {
+        const circlesToRemove = room.maps[map][tactic].filter(obj => obj.type.startsWith('custom-circle-') && obj.parentId === parentId);
+        room.maps[map][tactic] = room.maps[map][tactic].filter(obj => !(obj.type.startsWith('custom-circle-') && obj.parentId === parentId));
+
+        circlesToRemove.forEach(circle => {
+          socket.to(roomId).emit('object-removed', { id: circle.id });
+        });
+
+        console.log(`[ROOM: ${roomId}] Удалено ${circlesToRemove.length} кастомных окружностей с корабля ${parentId} в тактике "${tactic}" карты "${map}"`);
+
+        try {
+          await saveRoom(roomId, room);
+        } catch (e) {
+          console.error(`[ROOM: ${roomId}] Ошибка при сохранении комнаты (remove-all-custom-circles):`, e);
+        }
+      }
+    });
+  }
+});
+  
 socket.on('remove-object', async (data) => {
   const roomId = socket.roomId;
   const map = socket.currentMap;
