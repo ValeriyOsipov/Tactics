@@ -665,6 +665,7 @@ canvas.onclick = (e) => {
             color: currentCircleColor
           };
           socket.emit('add-custom-circle', circleObj);
+          console.log('DEBUG: Отправлена команда на добавление окружности:', circleObj);
         } else if (circleActionMode === 'remove_all') {
           socket.emit('remove-all-custom-circles', { parentId: obj.id });
         }
@@ -678,6 +679,7 @@ canvas.onclick = (e) => {
       }
     }
     if (circleActionMode) {
+      console.log('DEBUG: Действие отменено: клик не на корабль.');
       circleActionMode = null;
       addCircleBtn.textContent = 'Добавить окружность';
       removeAllCirclesBtn.textContent = 'Удалить все кастомные окр. с корабля';
