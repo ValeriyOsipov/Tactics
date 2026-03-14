@@ -464,9 +464,8 @@ socket.on('switch-tactic', async (data) => {
     await withRoomLock(roomId, async () => {
       let room = await getRoom(roomId);
       if (room && room.maps[mapName] && room.maps[mapName][tacticName]) {
-        room.currentMap = mapName;
         room.currentTactic = tacticName;
-        socket.currentTactic = tacticName;
+        socket.currentTactic = tacticName; 
 
         socket.to(roomId).emit('tactic-changed', { map: mapName, tactic: tacticName });
 
@@ -474,12 +473,16 @@ socket.on('switch-tactic', async (data) => {
 
         try {
           await saveRoom(roomId, room);
-          console.log(`[ROOM: ${roomId}] Тактика изменена на ${tacticName} для карты ${mapName}`);
+          console.log(`[ROOM: ${roomId}] Тактика изменена на ${tacticName} для карты ${mapName}, socket.currentTactic обновлён.`);
         } catch (e) {
           console.error(`[ROOM: ${roomId}] Ошибка при сохранении комнаты (switch-tactic):`, e);
         }
+      } else {
+         console.error(`[ROOM: ${roomId}] switch-tactic: Карта "${mapName}" или тактика "${tacticName}" не найдены в данных комнаты.`, room?.maps[mapName]);
       }
     });
+  } else {
+      console.error(`[ROOM: ${roomId}] switch-tactic: Карта в данных (${mapName}) не совпадает с текущей картой сокета (${socket.currentMap}) или roomId отсутствует.`);
   }
 });
 
