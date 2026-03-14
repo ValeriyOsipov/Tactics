@@ -184,8 +184,14 @@ class Ripple {
 function drawObjects() {
   if (!Array.isArray(objects)) {
     console.error('CRITICAL ERROR: objects is not an array in drawObjects!', objects);
-    objects = [];
+    console.error('Тип objects:', typeof objects);
+    console.error('currentMap:', currentMap);
+    console.error('currentTactic:', currentTactic);
+    console.error('allObjects[currentMap]:', allObjects[currentMap]);
+    console.error('allObjects[currentMap][currentTactic]:', allObjects[currentMap] ? allObjects[currentMap][currentTactic] : 'N/A');
+    objects = []; // Восстановим, если сломалось
   }
+  
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   if (bgLoaded) {
@@ -482,7 +488,6 @@ deleteTacticBtn.onclick = () => {
 
 socket.on('object-added', (obj) => {
   objects.push(obj);
-  allObjects[currentMap][currentTactic] = objects;
   if (!allObjects[currentMap]) allObjects[currentMap] = {};
 });
 
@@ -512,7 +517,6 @@ socket.on('object-removed', (data) => {
   const index = objects.findIndex(o => o.id === data.id);
   if (index !== -1) {
     objects.splice(index, 1);
-    allObjects[currentMap][currentTactic] = objects;
   }
 });
 
