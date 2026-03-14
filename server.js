@@ -243,6 +243,9 @@ socket.on('update-object', async (data) => {
       if (room && room.maps[map] && room.maps[map][tactic]) {
         const obj = room.maps[map][tactic].find(o => o.id === data.id);
         if (obj) {
+          let oldX = obj.x;
+          let oldY = obj.y;
+
           if (data.x !== undefined) obj.x = data.x;
           if (data.y !== undefined) obj.y = data.y;
 
@@ -254,11 +257,29 @@ socket.on('update-object', async (data) => {
           if (data.endX !== undefined) obj.endX = data.endX;
           if (data.endY !== undefined) obj.endY = data.endY;
 
+          const isShip = (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es');
+          if (isShip && (oldX !== obj.x || oldY !== obj.y)) {
+            room.maps[map][tactic].forEach(otherObj => {
+              if (otherObj.type.startsWith('custom-circle-') && otherObj.parentId === obj.id) {
+                otherObj.x = obj.x;
+                otherObj.y = obj.y;
+              }
+            });
+          }
+
           socket.to(roomId).emit('object-updated', data);
+
+          if (isShip) {
+             room.maps[map][tactic].forEach(otherObj => {
+               if (otherObj.type.startsWith('custom-circle-') && otherObj.parentId === obj.id) {
+                 socket.to(roomId).emit('object-updated', { id: otherObj.id, x: otherObj.x, y: otherObj.y });
+               }
+             });
+          }
 
           try {
             await saveRoom(roomId, room);
-            console.log(`[ROOM: ${roomId}] Объект в тактике "${tactic}" карты "${map}" обновлён, состояние комнаты сохранено в Redis (update-object)`);
+            console.log(`[ROOM: ${roomId}] Объект и его окружности обновлены, состояние комнаты сохранено в Redis (update-object)`);
           } catch (e) {
             console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (update-object):`, e);
           }
