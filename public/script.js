@@ -478,6 +478,7 @@ deleteTacticBtn.onclick = () => {
 
 socket.on('object-added', (obj) => {
   objects.push(obj);
+  allObjects[currentMap][currentTactic] = objects;
   if (!allObjects[currentMap]) allObjects[currentMap] = {};
 });
 
@@ -507,6 +508,7 @@ socket.on('object-removed', (data) => {
   const index = objects.findIndex(o => o.id === data.id);
   if (index !== -1) {
     objects.splice(index, 1);
+    allObjects[currentMap][currentTactic] = objects;
   }
 });
 
