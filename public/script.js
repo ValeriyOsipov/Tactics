@@ -379,8 +379,6 @@ socket.on('room-data', (data) => {
 
   objects = allObjects[currentMap][currentTactic];
 
-  console.log('DEBUG room-data: objects =', objects, 'allObjects[currentMap][currentTactic] =', allObjects[currentMap][currentTactic]);
-
   mapSelect.value = currentMap;
 
   tacticSelect.innerHTML = '';
@@ -496,7 +494,6 @@ canvas.onclick = (e) => {
 
     if (!vectorStartPoint) {
       vectorStartPoint = { x, y };
-      console.log('Начало вектора:', vectorStartPoint);
     } else {
       tempVectorEnd = { x, y };
       const vectorObj = {
@@ -518,7 +515,6 @@ canvas.onclick = (e) => {
       vectorType = null;
       vectorStartPoint = null;
       tempVectorEnd = null;
-      console.log('Вектор добавлен:', vectorObj);
     }
     return;
   }
@@ -570,7 +566,6 @@ canvas.oncontextmenu = (e) => {
     vectorType = null;
     vectorStartPoint = null;
     tempVectorEnd = null;
-    console.log('Режим вектора отменён');
     e.preventDefault();
     return;
   }
@@ -674,7 +669,6 @@ canvas.onmousedown = (e) => {
     
       const stopHoldClick = () => {
         if (holdClickInterval) {
-          console.log('Останавливаем interval при mouseup/mouseleave');
           clearInterval(holdClickInterval);
           holdClickInterval = null;
         }
@@ -928,7 +922,6 @@ canvas.ondblclick = (e) => {
     vectorType = null;
     vectorStartPoint = null;
     tempVectorEnd = null;
-    console.log('Режим вектора отменён');
     return;
   }
 
@@ -961,7 +954,6 @@ canvas.ondblclick = (e) => {
 
         if (socket.connected) {
           socket.emit('update-object', { id: obj.id, x: obj.x, y: obj.y, label: obj.label });
-          console.log('[DEBUG] update-object отправлен:', obj.label);
         } else {
           console.warn('Соединение с сервером потеряно, обновление не отправлено:', obj.label);
           alert('Соединение с сервером потеряно. Подпись не обновлена.');
@@ -997,7 +989,6 @@ canvas.addEventListener('drop', (e) => {
     vectorType = null;
     vectorStartPoint = null;
     tempVectorEnd = null;
-    console.log('Режим вектора отменён');
     return;
   }
 
@@ -1093,8 +1084,6 @@ socket.on('map-changed', (data) => {
 socket.on('tactic-objects', (data) => {
   const { map, tactic, objects: tacticObjects } = data;
 
-  console.log(`[DEBUG] Получены объекты для тактики "${tactic}" на карте "${map}", количество: ${tacticObjects.length}`);
-
   if (!allObjects[map]) {
     allObjects[map] = {};
   }
@@ -1117,9 +1106,12 @@ socket.on('tactic-changed', (data) => {
     if (allObjects[currentMap] && allObjects[currentMap][currentTactic]) {
       objects = allObjects[currentMap][currentTactic];
     } else {
-      objects = [];
       if (!allObjects[currentMap]) allObjects[currentMap] = {};
-      allObjects[currentMap][currentTactic] = objects;
+      allObjects[currentMap][currentTactic] = [];
+      objects = allObjects[currentMap][currentTactic];
+      drawObjects();
+
+      socket.emit('get-objects-for-tactic', { map: currentMap, tactic: currentTactic });
     }
 
     drawObjects();
