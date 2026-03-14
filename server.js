@@ -267,7 +267,7 @@ socket.on('update-object', async (data) => {
             });
           }
 
-          socket.to(roomId).emit('object-updated', data);
+          io.to(roomId).emit('object-updated', data);
 
           if (isShip) {
              room.maps[map][tactic].forEach(otherObj => {
@@ -504,35 +504,63 @@ socket.on('remove-all-custom-circles', async (data) => {
 });
   
 socket.on('remove-object', async (data) => {
+  const { id: objectIdToRemove } = data;
   const roomId = socket.roomId;
   const map = socket.currentMap;
   const tactic = socket.currentTactic;
 
-  if (roomId && map && tactic) {
+  if (roomId && map && tactic && objectIdToRemove) {
     await withRoomLock(roomId, async () => {
       let room = await getRoom(roomId);
       if (room && room.maps[map] && room.maps[map][tactic]) {
-        const index = room.maps[map][tactic].findIndex(o => o.id === data.id);
-        if (index !== -1) {
-          room.maps[map][tactic].splice(index, 1);
+        const objIndex = room.maps[map][tactic].findIndex(o => o.id === objectIdToRemove);
 
-          socket.to(roomId).emit('object-removed', { id: data.id });
+        if (objIndex !== -1) {
+          const objToRemove = room.maps[map][tactic][objIndex];
+
+          room.maps[map][tactic].splice(objIndex, 1);
+
+          const isShip = (objToRemove.type.startsWith('l') || objToRemove.type.startsWith('k') || objToRemove.type === 'es');
+
+          if (isShip) {
+            const circlesToRemove = [];
+            for (let i = room.maps[map][tactic].length - 1; i >= 0; i--) {
+              const otherObj = room.maps[map][tactic][i];
+              if (otherObj.type.startsWith('custom-circle-') && otherObj.parentId === objToRemove.id) {
+                circlesToRemove.push({ id: otherObj.id, index: i });
+              }
+            }
+
+            for (const circle of circlesToRemove) {
+              room.maps[map][tactic].splice(circle.index, 1);
+            }
+
+            console.log(`[ROOM: ${roomId}] Удалён корабль ${objToRemove.id} и ${circlesToRemove.length} привязанных к нему кастомных окружностей.`);
+          } else {
+            console.log(`[ROOM: ${roomId}] Удалён объект ${objToRemove.id}.`);
+          }
+
+          io.to(roomId).emit('object-removed', { id: objToRemove.id });
+
+          circlesToRemove.forEach(circle => {
+            io.to(roomId).emit('object-removed', { id: circle.id });
+          });
 
           try {
             await saveRoom(roomId, room);
-            console.log(`[ROOM: ${roomId}] Объект из тактики "${tactic}" карты "${map}" удалён, состояние сохранено в Redis`);
+            console.log(`[ROOM: ${roomId}] Объект и его окружности удалены, состояние сохранено в Redis`);
           } catch (e) {
             console.error(`[ROOM: ${roomId}] Ошибка при сохранении в Redis:`, e);
           }
         } else {
-          console.log(`[ROOM: ${roomId}] Объект с id ${data.id} не найден для удаления в тактике "${tactic}" карты "${map}".`);
+          console.log(`[ROOM: ${roomId}] Объект с id ${objectIdToRemove} не найден для удаления в тактике "${tactic}" карты "${map}".`);
         }
       } else {
         console.error(`[ROOM: ${roomId}] Не найдена карта "${map}" или тактика "${tactic}" при попытке удалить объект.`);
       }
     });
   } else {
-    console.error('Не указан roomId, currentMap или currentTactic при remove-object');
+    console.error('remove-object: Отсутствует roomId, currentMap, currentTactic или id удаляемого объекта.');
   }
 });
   
