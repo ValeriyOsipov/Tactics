@@ -1259,6 +1259,11 @@ socket.on('tactic-removed', (data) => {
       optionToRemove.remove();
     }
 
+    if (allObjects[currentMap] && allObjects[currentMap].hasOwnProperty(data.tactic)) {
+      delete allObjects[currentMap][data.tactic];
+    } else {
+    }
+
     currentTactic = data.newTactic;
     tacticSelect.value = currentTactic;
 
@@ -1268,7 +1273,6 @@ socket.on('tactic-removed', (data) => {
       objects = [];
       if (!allObjects[currentMap]) allObjects[currentMap] = {};
       allObjects[currentMap][currentTactic] = objects;
-      socket.emit('get-objects-for-tactic', { map: currentMap, tactic: currentTactic });
     }
     drawObjects();
   }
