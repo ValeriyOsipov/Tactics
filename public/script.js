@@ -578,7 +578,7 @@ canvas.onclick = (e) => {
       };
 
       objects.push(vectorObj);
-      allObjects[currentMap] = objects;
+      allObjects[currentMap][currentTactic] = objects;
       drawObjects();
 
       socket.emit('add-vector', vectorObj);
@@ -710,7 +710,7 @@ canvas.oncontextmenu = (e) => {
     if (inBounds) {
       obj.rotation = (obj.rotation || 0) + 1;
       if (obj.rotation > 7) obj.rotation = 0;
-      allObjects[currentMap] = objects;
+      allObjects[currentMap][currentTactic] = objects;
 
       socket.emit('update-object', {
         id: obj.id,
@@ -891,7 +891,7 @@ document.addEventListener('mousemove', (e) => {
       selectedObject.y = newY;
     }
 
-    allObjects[currentMap] = objects;
+    allObjects[currentMap][currentTactic] = objects;
     drawObjects();
   }
 
@@ -957,7 +957,7 @@ if (isDragging && selectedObject) {
         obj.x = selectedObject.x;
         obj.y = selectedObject.y;
       }
-      allObjects[currentMap] = objects;
+      allObjects[currentMap][currentTactic] = objects;
     }
 
     drawObjects();
@@ -981,7 +981,7 @@ if (isDragging && selectedObject) {
     if (mouseX >= trashRect.left && mouseX <= trashRect.right &&
         mouseY >= trashRect.top && mouseY <= trashRect.bottom) {
       objects.splice(draggedObj.index, 1);
-      allObjects[currentMap] = objects;
+      allObjects[currentMap][currentTactic] = objects;
       drawObjects();
 
       socket.emit('remove-object', { id: draggedObj.obj.id });
@@ -1071,7 +1071,7 @@ canvas.ondblclick = (e) => {
         }
 
         obj.label = newLabel;
-        allObjects[currentMap] = objects;
+        allObjects[currentMap][currentTactic] = objects;
 
         if (socket.connected) {
           socket.emit('update-object', { id: obj.id, x: obj.x, y: obj.y, label: obj.label });
