@@ -478,10 +478,6 @@ newTacticBtn.onclick = () => {
 
 deleteTacticBtn.onclick = () => {
   if (confirm('Вы точно хотите удалить текущую тактику?')) {
-    if (tacticSelect.options.length <= 1) {
-      alert('Нельзя удалить единственную тактику.');
-      return;
-    }
     socket.emit('remove-tactic', { mapName: currentMap, tacticName: currentTactic });
   }
 };
