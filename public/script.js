@@ -369,6 +369,7 @@ socket.on('wrong-password', () => {
 });
 
 socket.on('room-data', (data) => {
+  console.log('DEBUG: room-data получен:', data);
   if (!allObjects[data.currentMap]) {
     allObjects[data.currentMap] = {};
   }
@@ -475,13 +476,27 @@ socket.on('user-left', (userId) => {
 });
 
 function updateUsersList(users) {
+  console.log('DEBUG: updateUsersList вызвана с:', users);
+
+  if (!usersList) {
+    console.error('ERROR: Элемент с id "users-list" не найден в DOM!');
+    return;
+  }
+
   usersList.innerHTML = '';
-  users.forEach(user => {
-    const li = document.createElement('li');
-    li.id = `user-${user.id}`;
-    li.textContent = user.name;
-    usersList.appendChild(li);
-  });
+
+  if (users && Array.isArray(users)) {
+    console.log('DEBUG: users - массив, длина:', users.length);
+    users.forEach(user => {
+      console.log('DEBUG: Добавляем пользователя:', user);
+      const li = document.createElement('li');
+      li.id = `user-${user.id}`;
+      li.textContent = user.name;
+      usersList.appendChild(li);
+    });
+  } else {
+    console.error('DEBUG: users в updateUsersList не является массивом или null/undefined:', users);
+  }
 }
 
 let currentTool = null;
