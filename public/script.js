@@ -1060,7 +1060,7 @@ socket.on('map-changed', (data) => {
   currentMap = data.map;
   mapSelect.value = currentMap;
 
-  tacticSelect.innerHTML = ''; // Очищаем
+  tacticSelect.innerHTML = '';
   (data.tacticsList || ['Тактика 1']).forEach(tacticName => {
     if (typeof tacticName === 'string') {
       const opt = document.createElement('option');
@@ -1069,6 +1069,26 @@ socket.on('map-changed', (data) => {
       tacticSelect.appendChild(opt);
     }
   });
+
+  currentTactic = data.currentTactic || 'Тактика 1';
+  tacticSelect.value = currentTactic;
+
+  if (!allObjects[currentMap]) {
+    allObjects[currentMap] = {};
+  }
+
+  if (!allObjects[currentMap][currentTactic]) {
+    allObjects[currentMap][currentTactic] = [];
+    objects = allObjects[currentMap][currentTactic];
+    drawObjects();
+
+    socket.emit('get-objects-for-tactic', { map: currentMap, tactic: currentTactic });
+  } else {
+    objects = allObjects[currentMap][currentTactic];
+  }
+
+  loadBackground(currentMap);
+});
 
   currentTactic = data.currentTactic || 'Тактика 1';
   tacticSelect.value = currentTactic;
@@ -1084,6 +1104,25 @@ socket.on('map-changed', (data) => {
   loadBackground(currentMap);
 });
 
+socket.on('tactic-objects', (data) => {
+  const { map, tactic, objects: tacticObjects } = data;
+
+  console.log(`[DEBUG] Получены объекты для тактики "${tactic}" на карте "${map}", количество: ${tacticObjects.length}`);
+
+  if (!allObjects[map]) {
+    allObjects[map] = {};
+  }
+
+  allObjects[map][tactic] = tacticObjects;
+
+  if (map === currentMap && tactic === currentTactic) {
+    objects = allObjects[map][tactic];
+    drawObjects();
+  } else {
+    console.log(`[DEBUG] Объекты получены для неактивной карты/тактики (${map}/${tactic}), не обновляем objects.`);
+  }
+});
+
 socket.on('tactic-changed', (data) => {
   if (data.map === currentMap) {
     currentTactic = data.tactic;
@@ -1096,8 +1135,6 @@ socket.on('tactic-changed', (data) => {
       if (!allObjects[currentMap]) allObjects[currentMap] = {};
       allObjects[currentMap][currentTactic] = objects;
     }
-
-    console.log('DEBUG tactic-changed: objects =', objects, 'allObjects[currentMap][currentTactic] =', allObjects[currentMap][currentTactic]);
 
     drawObjects();
   }
