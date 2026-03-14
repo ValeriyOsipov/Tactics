@@ -272,7 +272,7 @@ socket.on('update-object', async (data) => {
           if (isShip) {
              room.maps[map][tactic].forEach(otherObj => {
                if (otherObj.type.startsWith('custom-circle-') && otherObj.parentId === obj.id) {
-                 socket.to(roomId).emit('object-updated', { id: otherObj.id, x: otherObj.x, y: otherObj.y });
+                 io.to(roomId).emit('object-updated', { id: otherObj.id, x: otherObj.x, y: otherObj.y });
                }
              });
           }
