@@ -20,7 +20,10 @@ const shipsPanel = document.getElementById('ships-panel');
 const tacticSelect = document.getElementById('tactic-select');
 const newTacticBtn = document.getElementById('new-tactic-btn');
 const deleteTacticBtn = document.getElementById('delete-tactic-btn');
-
+const circleControlsDiv = document.getElementById('circle-controls');
+const addCircleBtn = document.getElementById('add-circle-btn');
+const removeAllCirclesBtn = document.getElementById('remove-all-circles-btn');
+const circleRadiusInput = document.getElementById('circle-radius-input');
 
 let allObjects = {};
 let currentMap = 'Греция.png';
@@ -42,6 +45,10 @@ let vectorStartPoint = null;
 let tempVectorEnd = null;
 
 let holdClickInterval = null;
+
+let currentCircleColor = 'red';
+let currentCircleRadiusKm = 5.5;
+let circleActionMode = null;
 
 const shipRadii = {
   'Des Moines': 10,
@@ -115,6 +122,35 @@ joinBtn.onclick = () => {
   canvasContainer.style.display = 'block';
   roomDisplay.textContent = roomId;
   resizeCanvas();
+};
+
+document.querySelectorAll('input[name="circle-color"]').forEach(radio => {
+  radio.addEventListener('change', (e) => {
+    if (e.target.checked) {
+      currentCircleColor = e.target.value;
+    }
+  });
+});
+
+circleRadiusInput.addEventListener('input', (e) => {
+  const val = parseFloat(e.target.value);
+  if (!isNaN(val) && val > 0) {
+    currentCircleRadiusKm = val;
+  }
+});
+
+addCircleBtn.onclick = () => {
+  circleActionMode = 'add';
+  addCircleBtn.textContent = 'Выберите корабль...';
+  addCircleBtn.disabled = true;
+  removeAllCirclesBtn.disabled = true;
+};
+
+removeAllCirclesBtn.onclick = () => {
+  circleActionMode = 'remove_all';
+  removeAllCirclesBtn.textContent = 'Выберите корабль...';
+  addCircleBtn.disabled = true;
+  removeAllCirclesBtn.disabled = true;
 };
 
 const ripples = [];
@@ -238,6 +274,17 @@ function drawObjects() {
       ctx.strokeStyle = ctx.strokeStyle;
       ctx.lineWidth = 2;
       ctx.stroke();
+    } else if (obj.type.startsWith('custom-circle-')) {
+      const mapSizeKm = mapSizes[currentMap] || 42;
+      const radiusPx = (obj.radiusKm / mapSizeKm) * canvas.width;
+
+      ctx.beginPath();
+      ctx.arc(obj.x, obj.y, radiusPx, 0, Math.PI * 2);
+      ctx.strokeStyle = obj.color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.stroke();
+      ctx.setLineDash([]);
     }
   });
 
@@ -463,6 +510,58 @@ socket.on('object-removed', (data) => {
   }
 });
 
+socket.on('add-custom-circle', async (circleObj) => {
+  const roomId = socket.roomId;
+  const map = socket.currentMap;
+  const tactic = socket.currentTactic;
+
+  if (roomId && map && tactic) {
+    await withRoomLock(roomId, async () => {
+      let room = await getRoom(roomId);
+      if (room && room.maps[map] && room.maps[map][tactic]) {
+        room.maps[map][tactic].push(circleObj);
+        socket.to(roomId).emit('object-added', circleObj);
+        console.log(`[ROOM: ${roomId}] Кастомная окружность добавлена в тактику "${tactic}" карты "${map}"`);
+
+        try {
+          await saveRoom(roomId, room);
+        } catch (e) {
+          console.error(`[ROOM: ${roomId}] Ошибка при сохранении комнаты (add-custom-circle):`, e);
+        }
+      }
+    });
+  }
+});
+
+socket.on('remove-all-custom-circles', async (data) => {
+  const { parentId } = data;
+  const roomId = socket.roomId;
+  const map = socket.currentMap;
+  const tactic = socket.currentTactic;
+
+  if (roomId && map && tactic && parentId) {
+    await withRoomLock(roomId, async () => {
+      let room = await getRoom(roomId);
+      if (room && room.maps[map] && room.maps[map][tactic]) {
+        const circlesToRemove = room.maps[map][tactic].filter(obj => obj.type.startsWith('custom-circle-') && obj.parentId === parentId);
+        room.maps[map][tactic] = room.maps[map][tactic].filter(obj => !(obj.type.startsWith('custom-circle-') && obj.parentId === parentId));
+
+        circlesToRemove.forEach(circle => {
+          socket.to(roomId).emit('object-removed', { id: circle.id });
+        });
+
+        console.log(`[ROOM: ${roomId}] Удалено ${circlesToRemove.length} кастомных окружностей с корабля ${parentId} в тактике "${tactic}" карты "${map}"`);
+
+        try {
+          await saveRoom(roomId, room);
+        } catch (e) {
+          console.error(`[ROOM: ${roomId}] Ошибка при сохранении комнаты (remove-all-custom-circles):`, e);
+        }
+      }
+    });
+  }
+});
+
 socket.on('user-joined', (user) => {
   const li = document.createElement('li');
   li.id = `user-${user.id}`;
@@ -539,6 +638,53 @@ canvas.onclick = (e) => {
   const y = e.clientY - rect.top;
   const id = Date.now() + Math.random();
 
+  if (circleActionMode) {
+    for (let i = objects.length - 1; i >= 0; i--) {
+      const obj = objects[i];
+      let inBounds = false;
+
+      if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
+        const img = shipImages[obj.type][obj.color];
+        if (img && img.complete) {
+          inBounds = x >= obj.x - img.width / 2 && x <= obj.x + img.width / 2 &&
+                     y >= obj.y - img.height / 2 && y <= obj.y + img.height / 2;
+        }
+      }
+
+      if (inBounds) {
+        if (circleActionMode === 'add') {
+          const circleObj = {
+            id: Date.now() + '-' + Math.random(),
+            type: `custom-circle-${currentCircleColor}`,
+            parentId: obj.id,
+            x: obj.x,
+            y: obj.y,
+            radiusKm: currentCircleRadiusKm,
+            color: currentCircleColor
+          };
+          socket.emit('add-custom-circle', circleObj);
+        } else if (circleActionMode === 'remove_all') {
+          socket.emit('remove-all-custom-circles', { parentId: obj.id });
+        }
+
+        circleActionMode = null;
+        addCircleBtn.textContent = 'Добавить окружность';
+        removeAllCirclesBtn.textContent = 'Удалить все кастомные окр. с корабля';
+        addCircleBtn.disabled = false;
+        removeAllCirclesBtn.disabled = false;
+        return;
+      }
+    }
+    if (circleActionMode) {
+      circleActionMode = null;
+      addCircleBtn.textContent = 'Добавить окружность';
+      removeAllCirclesBtn.textContent = 'Удалить все кастомные окр. с корабля';
+      addCircleBtn.disabled = false;
+      removeAllCirclesBtn.disabled = false;
+    }
+    return;
+  }
+  
   ripples.push(new Ripple(x, y));
 
   socket.emit('click-effect', { x, y });
