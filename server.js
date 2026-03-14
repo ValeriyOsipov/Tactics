@@ -386,19 +386,25 @@ socket.on('change-map', async (data) => {
 socket.on('add-vector', async (vectorObj) => {
   const roomId = socket.roomId;
   const map = socket.currentMap;
-  if (roomId) {
+  const tactic = socket.currentTactic;
+
+  if (roomId && map && tactic) {
     let room = await getRoom(roomId);
-    if (room && room.maps[map]) {
-      room.maps[map].objects.push(vectorObj);
+    if (room && room.maps[map] && room.maps[map][tactic]) {
+      room.maps[map][tactic].push(vectorObj);
       socket.to(roomId).emit('vector-added', vectorObj);
 
       try {
         await saveRoom(roomId, room);
-        console.log(`[ROOM: ${roomId}] Вектор добавлен`);
+        console.log(`[ROOM: ${roomId}] Вектор добавлен в тактику "${tactic}" карты "${map}"`);
       } catch (e) {
         console.error(`[ROOM: ${roomId}] Ошибка при сохранении вектора:`, e);
       }
+    } else {
+       console.error(`[ROOM: ${roomId}] add-vector: Карта "${map}" или тактика "${tactic}" не найдены для сокета.`, room?.maps[map]);
     }
+  } else {
+      console.error('add-vector: Отсутствует roomId, currentMap или currentTactic у сокета.');
   }
 });
   
