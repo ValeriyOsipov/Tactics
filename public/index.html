@@ -19,23 +19,35 @@
     <div class="workspace" id="canvas-container">
         
         <div id="info-panel">
-	      <h3>Комната: <span id="room-id-display"></span></h3>
-		<div>
-		        <label>Карта: </label>
-		     	<select id="map-select">
-		     		<option value="Греция.png">Греция.png</option>
-		 	</select>
-		</div>
-	 	<div>
-		        <label for="tactic-select">Тактика:</label>
-		        <select id="tactic-select">
-	        		<option value="Тактика 1">Тактика 1</option>
-	        	</select>
-	        	<button id="new-tactic-btn">Новая тактика</button>
-	        	<button id="delete-tactic-btn">Удалить текущую тактику</button>
-	      	</div>
-		<label>Список участников: </label>
-		<ul id="users-list"></ul>
+		    <h3>Комната: <span id="room-id-display"></span></h3>
+			<div>
+			    <label>Карта: </label>
+			    <select id="map-select">
+			     		<option value="Греция.png">Греция.png</option>
+			 	</select>
+			</div>
+		 	<div>
+				<label for="tactic-select">Тактика:</label>
+				<select id="tactic-select">
+					<option value="Тактика 1">Тактика 1</option>
+				</select>
+				<button id="new-tactic-btn">Новая тактика</button>
+				<button id="delete-tactic-btn">Удалить текущую тактику</button>
+			</div>
+			<label>Список участников: </label>
+			<ul id="users-list"></ul>
+			<button id="help-btn" class="help-button">Как это работает?</button>
+			<div id="help-modal" class="modal-overlay">
+			    <div class="modal-content">
+			        <button id="modal-close" class="modal-close-btn">&times;</button>
+			        <h2>Как это работает?</h2>
+			        <div class="modal-body">
+			            <p>Здесь будет текст инструкции...</p>
+			            <p>Добавьте нужную информацию.</p>
+			        </div>
+			        <button id="modal-ok" class="modal-ok-btn">Понятно</button>
+			    </div>
+			</div>
         </div>
 	<canvas id="canvas" width="900" height="900"></canvas>
         <div id="ships-panel">
