@@ -14,48 +14,96 @@
   </div>
 
   <div id="canvas-container" style="display:none;">
-    <div id="info-panel">
-      <h3>Комната: <span id="room-id-display"></span></h3>
-      <div>
-        <label>Карта: </label>
-        <select id="map-select">
-          <option value="Греция.png">Греция.png</option>
-        </select>
-      </div>
-      <br>
-      <label>Список участников: </label>
-      <ul id="users-list"></ul>
+    <a href="https://forum.korabli.su/topic/169209-%D1%81%D0%B5%D1%80%D0%B2%D0%B8%D1%81-%D1%82%D0%B0%D0%BA%D1%82%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B8%D0%B9-%D0%BF%D0%BB%D0%B0%D0%BD%D1%88%D0%B5%D1%82/" class="forum-link">Тема на официальном форуме Мира Кораблей</a>
+
+    <div class="workspace" id="canvas-container">
+        
+        <div id="info-panel">
+		    <h3>Комната: <span id="room-id-display"></span></h3>
+			<div>
+			    <label>Карта: </label>
+			    <select id="map-select">
+			     		<option value="Греция.png">Греция.png</option>
+			 	</select>
+			</div>
+		 	<div>
+				<label for="tactic-select">Тактика:</label>
+				<select id="tactic-select">
+					<option value="Тактика 1">Тактика 1</option>
+				</select>
+				<button id="new-tactic-btn">Новая тактика</button>
+				<button id="delete-tactic-btn">Удалить текущую тактику</button>
+			</div>
+			<label>Список участников: </label>
+			<ul id="users-list"></ul>
+			<button id="help-btn" class="help-button">Как это работает?</button>
+			<div id="help-modal" class="modal-overlay">
+			    <div class="modal-content">
+			        <button id="modal-close" class="modal-close-btn">&times;</button>
+			        <h2>Как это работает?</h2>
+			        <div class="modal-body">
+			            <p><b>Добавление корабля:</b> перетащите иконку корабля с правой панели на карту</p>
+						<p><b>Добавить название корабля:</b> двойной клик на иконку корабля на карте</p>
+						<p><b>Вращение корабля:</b> клик ПКМ по иконке корабля на карте</p>
+			            <p><b>Добавление вектора:</b> клик на иконку вектора, после чего клик на карту для начала рисования вектора, второй клик на карту для закрепления, либо ПКМ для отмены</p>
+						<p><b>Удаление объекта:</b> перетащить корабль или вектор (за середину) в мусорку на панели справа</p>
+						<p><b>Добавление радиуса:</b> выбрать цвет и радиус в км на панели справа, нажать "добавить окрудность", нажать на корабль на карте</p>
+						<p><b>Удаление радиусов:</b> нажать на кнопку "Удалить все окружности с корабля", нажать на корабль на карте</p>
+			        </div>
+			        <button id="modal-ok" class="modal-ok-btn">Понятно</button>
+			    </div>
+			</div>
+        </div>
+	<canvas id="canvas" width="900" height="900"></canvas>
+        <div id="ships-panel">
+		<div id="trashcan" class="trashcan-zone">
+			🗑️
+			<div>
+				Перетащите сюда иконки кораблей или векторов с карты для удаления
+			</div>	
+		</div>
+		<h4>Иконки кораблей</h4>
+		<div class="ships-grid">
+ 			<div class="ship-item" data-type="lk" data-color="red"><img src="ships/lk_red.svg" draggable="true" width="50" height="50"></div>
+			<div class="ship-item" data-type="kr" data-color="red"><img src="ships/kr_red.svg" draggable="true" width="50" height="50"></div>
+			<div class="ship-item" data-type="es" data-color="red"><img src="ships/es_red.svg" draggable="true" width="50" height="50"></div>
+			<div class="ship-item" data-type="lk" data-color="green"><img src="ships/lk_green.svg" draggable="true" width="50" height="50"></div>
+			<div class="ship-item" data-type="kr" data-color="green"><img src="ships/kr_green.svg" draggable="true" width="50" height="50"></div>
+			<div class="ship-item" data-type="es" data-color="green"><img src="ships/es_green.svg" draggable="true" width="50" height="50"></div>
+        	</div>
+		<h4>Вектор</h4>
+		<div class="vectors-grid">
+			<div class="ship-item" data-type="vector-red">
+    			<svg width="50" height="50" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
+        			<path d="M10 25 L35 25 L35 15 L45 25 L35 35 L35 25 L10 25 Z M10 20 L10 30" 
+              			fill="#ff0000" stroke="#ff0000" stroke-width="2"/>
+    			</svg>
+			</div>
+			<div class="ship-item" data-type="vector-green">
+    			<svg width="50" height="50" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
+        			<path d="M10 25 L35 25 L35 15 L45 25 L35 35 L35 25 L10 25 Z M10 20 L10 30" 
+              			fill="#00ff00" stroke="#00ff00" stroke-width="2"/>
+    			</svg>
+			</div>
+		</div>
+		<h4>Кастомные окружности</h4>
+		<div id="circle-controls">
+			<div>
+				<span>Цвет</span>
+				<label><input type="radio" name="circle-color" value="red" checked> 🔴</label>
+				<label><input type="radio" name="circle-color" value="green"> 🟢</label>
+				<label><input type="radio" name="circle-color" value="yellow"> 🟡</label>
+			</div>
+			<div>
+				<div>Радиус, км</div>
+				<input type="number" id="circle-radius-input" value="5.5" step="0.1" min="0.1" max="48" placeholder="Радиус (км)">
+			</div>
+			<button id="add-circle-btn">Добавить окружность</button>
+			<button id="remove-all-circles-btn">Удалить все окружности с корабля</button>
+        	</div>
+        </div>
+
     </div>
-    <canvas id="canvas"></canvas>
-    <div id="ships-panel">
-      <span class="small-text">Иконки кораблей</span>
-      <div class="ship-item" data-type="lk" data-color="red"><img src="ships/lk_red.svg" draggable="true" width="50" height="50"></div>
-      <div class="ship-item" data-type="kr" data-color="red"><img src="ships/kr_red.svg" draggable="true" width="50" height="50"></div>
-      <div class="ship-item" data-type="es" data-color="red"><img src="ships/es_red.svg" draggable="true" width="50" height="50"></div>
-      <div class="ship-item" data-type="lk" data-color="green"><img src="ships/lk_green.svg" draggable="true" width="50" height="50"></div>
-      <div class="ship-item" data-type="kr" data-color="green"><img src="ships/kr_green.svg" draggable="true" width="50" height="50"></div>
-      <div class="ship-item" data-type="es" data-color="green"><img src="ships/es_green.svg" draggable="true" width="50" height="50"></div>
-      <br>
-      <br>
-      <span class="small-text">Вектор</span>
-      <div class="ship-item" data-type="vector-red"><img src="icons/vector-red.png" alt="Красный вектор" width="50" height="50"></div>
-      <div class="ship-item" data-type="vector-green"><img src="icons/vector-green.png" alt="Зелёный вектор" width="50" height="50"></div>
-    </div>
-    <a class="forum-link" href="https://forum.korabli.su/topic/169209-%D1%81%D0%B5%D1%80%D0%B2%D0%B8%D1%81-%D1%82%D0%B0%D0%BA%D1%82%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B8%D0%B9-%D0%BF%D0%BB%D0%B0%D0%BD%D1%88%D0%B5%D1%82/" target="_blank" 
-       style="
-         position: fixed;
-         bottom: 20px;
-         right: 20px;
-         color: #007bff;
-         text-decoration: underline;
-         font-size: 12px;
-         z-index: 1000;
-         pointer-events: auto;
-         width: 250px;
-       "
-    >
-  Тема на официальном форуме Мира Кораблей с описанием функционала
-</a>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>

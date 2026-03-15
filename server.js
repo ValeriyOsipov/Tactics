@@ -44,18 +44,31 @@ async function withRoomLock(roomId, callback) {
   }
 }
 
-// === ФУНКЦИИ ДЛЯ РАБОТЫ С ОТДЕЛЬНЫМИ КОМНАТАМИ ===
-
 async function getRoom(roomId) {
   const data = await redisClient.get(`room:${roomId}`);
-  return data ? JSON.parse(data) : null;
+  let room = data ? JSON.parse(data) : null;
+
+  if (room) {
+    for (const mapName in room.maps) {
+      if (Array.isArray(room.maps[mapName])) {
+        room.maps[mapName] = {
+          'Тактика 1': room.maps[mapName]
+        };
+        console.log(`[ROOM: ${roomId}] Карта "${mapName}" преобразована в формат с тактиками.`);
+      }
+      if (Object.keys(room.maps[mapName]).length === 0) {
+        room.maps[mapName]['Тактика 1'] = [];
+      }
+    }
+  }
+
+  return room;
 }
 
 async function saveRoom(roomId, roomData) {
   await redisClient.set(`room:${roomId}`, JSON.stringify(roomData));
 }
 
-// === ЗАГРУЗКА СПИСКА ВСЕХ КОМНАТ (опционально) ===
 async function getAllRooms() {
   const roomKeys = await redisClient.keys('room:*');
   const roomPromises = roomKeys.map(key => redisClient.get(key));
@@ -129,15 +142,16 @@ io.on('connection', (socket) => {
     socket.emit('available-maps', availableMaps);
   });
 
-  socket.on('join-room', async ({ roomId, userName, password }) => {
-    socket.join(roomId);
+socket.on('join-room', async ({ roomId, userName, password }) => {
+  socket.join(roomId);
 
-    await withRoomLock(roomId, async () => {
+  await withRoomLock(roomId, async () => {
     let room = await getRoom(roomId);
 
     if (!room) {
-      room = { maps: {}, users: {}, currentMap: 'Греция.png', password: password || '' };
-      console.log(`Комната создана: ${roomId}`);
+      room = { maps: {}, users: {}, currentMap: 'Греция.png', currentTactic: 'Тактика 1', password: password || '' };
+      room.maps[room.currentMap] = { [room.currentTactic]: [] };
+      console.log(`[ROOM: ${roomId}] Комната создана`);
     } else {
       if (room.password && room.password !== password) {
         socket.emit('wrong-password');
@@ -146,37 +160,41 @@ io.on('connection', (socket) => {
     }
 
     let currentMap = room.currentMap;
-    if (!room.maps[currentMap]?.objects?.length) {
-      console.log(`currentMap "${currentMap}" пуста или не существует, ищем карту с объектами...`);
-      for (const mapName in room.maps) {
-        const map = room.maps[mapName];
-        if (map.objects && Array.isArray(map.objects) && map.objects.length > 0) {
-          currentMap = mapName;
-          room.currentMap = mapName;
-          console.log(`[ROOM: ${roomId}] Текущая карта изменена на: ${mapName}`);
-          break;
+    let currentTactic = room.currentTactic;
+    
+    if (!room.maps[currentMap] || !room.maps[currentMap][currentTactic]) {
+      if (room.maps[currentMap] && Object.keys(room.maps[currentMap]).length > 0) {
+        currentTactic = Object.keys(room.maps[currentMap])[0];
+        room.currentTactic = currentTactic;
+        console.log(`[ROOM: ${roomId}] Текущая тактика изменена на существующую: ${currentTactic}`);
+      } else {
+        if (!room.maps[currentMap]) {
+          room.maps[currentMap] = {};
         }
+        room.maps[currentMap]['Тактика 1'] = [];
+        room.currentTactic = 'Тактика 1';
+        currentTactic = 'Тактика 1';
       }
     }
 
-    if (!room.maps[currentMap]) {
-      room.maps[currentMap] = { objects: [] };
-    }
-
     room.users[socket.id] = { id: socket.id, name: userName || `User ${Object.keys(room.users).length + 1}` };
-
+    
+    socket.currentTactic = currentTactic;
     socket.roomId = roomId;
     socket.currentMap = currentMap;
 
     console.log(`Пользователь ${socket.id} (${userName}) зашёл в комнату ${roomId}`);
-
-    socket.to(roomId).emit('user-joined', room.users[socket.id]);
+    
     socket.emit('room-data', {
-      objects: room.maps[currentMap].objects,
+      objects: room.maps[currentMap][currentTactic],
       currentMap: currentMap,
+      currentTactic: currentTactic,
+      tacticsForCurrentMap: Object.keys(room.maps[currentMap]),
       users: Object.values(room.users)
     });
 
+    socket.to(roomId).emit('user-joined', room.users[socket.id]);
+    
     try {
       await saveRoom(roomId, room);
       console.log(`[ROOM: ${roomId}] Состояние комнаты сохранено в Redis (join-room)`);
@@ -189,80 +207,138 @@ io.on('connection', (socket) => {
 socket.on('add-object', async (data) => {
   const roomId = socket.roomId;
   const map = socket.currentMap;
-  if (roomId) {
-    let room = await getRoom(roomId);
-    if (room && room.maps[map]) {
-      if (data.rotation === undefined) data.rotation = 0;
+  const tactic = socket.currentTactic;
 
-      room.maps[map].objects.push(data);
-      socket.to(roomId).emit('object-added', data);
+  if (roomId && map && tactic) {
+    await withRoomLock(roomId, async () => {
+      let room = await getRoom(roomId);
+      if (room && room.maps[map] && room.maps[map][tactic]) {
+        if (data.rotation === undefined) data.rotation = 0;
 
-      try {
-        await saveRoom(roomId, room);
-        console.log(`[ROOM: ${roomId}] Состояние комнаты сохранено в Redis (add-object)`);
-      } catch (e) {
-        console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (add-object):`, e);
+        room.maps[map][tactic].push(data);
+
+        socket.to(roomId).emit('object-added', data);
+
+        try {
+          await saveRoom(roomId, room);
+          console.log(`[ROOM: ${roomId}] Объект добавлен в тактику "${tactic}" карты "${map}", состояние комнаты сохранено в Redis (add-object)`);
+        } catch (e) {
+          console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (add-object):`, e);
+        }
+      } else {
+        console.error(`[ROOM: ${roomId}] Не найдена карта "${map}" или тактика "${tactic}" при попытке добавить объект.`, room?.maps[map]);
       }
-    }
+    });
+  } else {
+    console.error('Не указан roomId, currentMap или currentTactic при add-object');
   }
 });
 
 socket.on('update-object', async (data) => {
   const roomId = socket.roomId;
   const map = socket.currentMap;
-  if (roomId) {
-    let room = await getRoom(roomId);
-    if (room && room.maps[map]) {
-      const obj = room.maps[map].objects.find(o => o.id === data.id);
-      if (obj) {
-        if (data.x !== undefined) obj.x = data.x;
-        if (data.y !== undefined) obj.y = data.y;
+  const tactic = socket.currentTactic;
 
-        if (data.label !== undefined) obj.label = data.label;
-        if (data.rotation !== undefined) obj.rotation = data.rotation;
+  if (roomId && map && tactic) {
+    await withRoomLock(roomId, async () => {
+      let room = await getRoom(roomId);
+      if (room && room.maps[map] && room.maps[map][tactic]) {
+        const obj = room.maps[map][tactic].find(o => o.id === data.id);
+        if (obj) {
+          let oldX = obj.x;
+          let oldY = obj.y;
 
-        if (data.startX !== undefined) obj.startX = data.startX;
-        if (data) obj.startY = data.startY;
-        if (data.endX !== undefined) obj.endX = data.endX;
-        if (data.endY !== undefined) obj.endY = data.endY;
+          if (data.x !== undefined) obj.x = data.x;
+          if (data.y !== undefined) obj.y = data.y;
 
-        socket.to(roomId).emit('object-updated', data);
+          if (data.label !== undefined) obj.label = data.label;
+          if (data.rotation !== undefined) obj.rotation = data.rotation;
 
-        try {
-          await saveRoom(roomId, room);
-          console.log(`[ROOM: ${roomId}] Состояние комнаты сохранено в Redis (update-object)`);
-        } catch (e) {
-          console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (update-object):`, e);
+          if (data.startX !== undefined) obj.startX = data.startX;
+          if (data.startY !== undefined) obj.startY = data.startY;
+          if (data.endX !== undefined) obj.endX = data.endX;
+          if (data.endY !== undefined) obj.endY = data.endY;
+
+          const isShip = (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es');
+          let circlesToUpdate = [];
+          if (isShip && (oldX !== obj.x || oldY !== obj.y)) {
+            room.maps[map][tactic].forEach(otherObj => {
+              if (otherObj.type.startsWith('custom-circle-') && otherObj.parentId === obj.id) {
+                otherObj.x = obj.x;
+                otherObj.y = obj.y;
+                circlesToUpdate.push(otherObj);
+              }
+            });
+          }
+
+          io.to(roomId).emit('object-updated', data);
+
+          circlesToUpdate.forEach(updatedCircle => {
+             io.to(roomId).emit('object-updated', { id: updatedCircle.id, x: updatedCircle.x, y: updatedCircle.y });
+          });
+
+          try {
+            await saveRoom(roomId, room);
+            console.log(`[ROOM: ${roomId}] Объект и его окружности обновлены, состояние комнаты сохранено в Redis (update-object)`);
+          } catch (e) {
+            console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (update-object):`, e);
+          }
+        } else {
+          console.log(`[ROOM: ${roomId}] Объект с id ${data.id} не найден в тактике "${tactic}" карты "${map}".`);
         }
+      } else {
+        console.error(`[ROOM: ${roomId}] Не найдена карта "${map}" или тактика "${tactic}" при попытке обновить объект.`);
+      }
+    });
+  } else {
+    console.error('Не указан roomId, currentMap или currentTactic при update-object');
+  }
+});
+
+socket.on('change-map', async (data) => {
+  const roomId = socket.roomId;
+  if (roomId) {
+    console.log(`[ROOM: ${roomId}] Смена карты на: ${data.map}`);
+    let room = await getRoom(roomId);
+    if (room) {
+      if (!room.maps[data.map]) {
+        room.maps[data.map] = { 'Тактика 1': [] };
+        console.log(`[ROOM: ${roomId}] Карта "${data.map}" инициализирована с тактикой "Тактика 1"`);
+      } else {
+        if (Object.keys(room.maps[data.map]).length === 0) {
+          room.maps[data.map]['Тактика 1'] = [];
+          console.log(`[ROOM: ${roomId}] Карта "${data.map}" пуста, добавлена "Тактика 1"`);
+        }
+      }
+
+      room.currentMap = data.map;
+      const firstTactic = Object.keys(room.maps[data.map])[0];
+      room.currentTactic = firstTactic;
+
+      socket.currentMap = data.map;
+      socket.currentTactic = firstTactic;
+
+      const socketsInRoom = await io.in(roomId).fetchSockets();
+      for (const sock of socketsInRoom) {
+        sock.currentMap = data.map;
+        sock.currentTactic = firstTactic;
+      }
+
+      io.to(roomId).emit('map-changed', {
+        map: data.map,
+        tacticsList: Object.keys(room.maps[data.map]),
+        currentTactic: room.currentTactic
+      });
+
+      try {
+        await saveRoom(roomId, room);
+        console.log(`[ROOM: ${roomId}] Состояние комнаты сохранено в Redis (change-map)`);
+      } catch (e) {
+        console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (change-map):`, e);
       }
     }
   }
 });
-
-  socket.on('change-map', async (data) => {
-    const roomId = socket.roomId;
-    if (roomId) {
-      console.log(`[ROOM: ${roomId}] Смена карты на: ${data.map}`);
-      let room = await getRoom(roomId);
-      if (room) {
-        if (!room.maps[data.map]) {
-          room.maps[data.map] = { objects: [] };
-        }
-        room.currentMap = data.map;
-        socket.currentMap = data.map;
-
-        socket.emit('map-changed', data);
-        socket.to(roomId).emit('map-changed', data);
-
-        try {
-          await saveRoom(roomId, room);
-          console.log(`[ROOM: ${roomId}] Состояние комнаты сохранено в Redis (change-map)`);
-        } catch (e) {
-          console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (change-map):`, e);
-        }
-      }
-    }
-  });
 
   socket.on('get-map-objects', async (data) => {
     const roomId = socket.roomId;
@@ -277,6 +353,28 @@ socket.on('update-object', async (data) => {
     }
   });
 
+  socket.on('get-objects-for-tactic', async (data) => {
+    const { map, tactic } = data;
+    const roomId = socket.roomId;
+  
+    if (roomId && map && tactic) {
+      let room = await getRoom(roomId);
+      if (room && room.maps[map] && room.maps[map][tactic]) {
+        socket.emit('tactic-objects', {
+          map: map,
+          tactic: tactic,
+          objects: room.maps[map][tactic]
+        });
+      } else {
+        console.error(`[ROOM: ${roomId}] Не найдена карта "${map}" или тактика "${tactic}" при запросе объектов.`);
+        socket.emit('tactic-objects', { map: map, tactic: tactic, objects: [] });
+      }
+    } else {
+      console.error('Запрос get-objects-for-tactic без необходимых параметров map или tactic.');
+      socket.emit('tactic-objects', { map: map, tactic: tactic, objects: [] });
+    }
+  });
+  
   socket.on('click-effect', (data) => {
     const roomId = socket.roomId;
     if (roomId) {
@@ -284,6 +382,14 @@ socket.on('update-object', async (data) => {
     }
   });
 
+  socket.on('hold-click-effect', (data) => {
+    const roomId = socket.roomId;
+    if (roomId) {
+      socket.to(roomId).emit('hold-click-effect', data);
+      socket.emit('hold-click-effect', data);
+    }
+  });
+  
   socket.on('drag-end-effect', (data) => {
     const roomId = socket.roomId;
     if (roomId) {
@@ -301,19 +407,25 @@ socket.on('update-object', async (data) => {
 socket.on('add-vector', async (vectorObj) => {
   const roomId = socket.roomId;
   const map = socket.currentMap;
-  if (roomId) {
+  const tactic = socket.currentTactic;
+
+  if (roomId && map && tactic) {
     let room = await getRoom(roomId);
-    if (room && room.maps[map]) {
-      room.maps[map].objects.push(vectorObj);
+    if (room && room.maps[map] && room.maps[map][tactic]) {
+      room.maps[map][tactic].push(vectorObj);
       socket.to(roomId).emit('vector-added', vectorObj);
 
       try {
         await saveRoom(roomId, room);
-        console.log(`[ROOM: ${roomId}] Вектор добавлен`);
+        console.log(`[ROOM: ${roomId}] Вектор добавлен в тактику "${tactic}" карты "${map}"`);
       } catch (e) {
         console.error(`[ROOM: ${roomId}] Ошибка при сохранении вектора:`, e);
       }
+    } else {
+       console.error(`[ROOM: ${roomId}] add-vector: Карта "${map}" или тактика "${tactic}" не найдены для сокета.`, room?.maps[map]);
     }
+  } else {
+      console.error('add-vector: Отсутствует roomId, currentMap или currentTactic у сокета.');
   }
 });
   
@@ -339,28 +451,255 @@ socket.on('add-vector', async (vectorObj) => {
     }
   });
 
-  socket.on('remove-object', async (data) => {
-    const roomId = socket.roomId;
-    const map = socket.currentMap;
-    if (roomId) {
-      let room = await getRoom(roomId);
-      if (room && room.maps[map]) {
-        const index = room.maps[map].objects.findIndex(o => o.id === data.id);
-        if (index !== -1) {
-          room.maps[map].objects.splice(index, 1);
+socket.on('add-custom-circle', async (circleObj) => {
+  const roomId = socket.roomId;
+  const map = socket.currentMap;
+  const tactic = socket.currentTactic;
 
-          socket.to(roomId).emit('object-removed', { id: data.id });
+  if (roomId && map && tactic) {
+    await withRoomLock(roomId, async () => {
+      let room = await getRoom(roomId);
+      if (room && room.maps[map] && room.maps[map][tactic]) {
+        room.maps[map][tactic].push(circleObj);
+        io.to(roomId).emit('object-added', circleObj);
+        console.log(`[ROOM: ${roomId}] Кастомная окружность добавлена в тактику "${tactic}" карты "${map}"`);
+
+        try {
+          await saveRoom(roomId, room);
+        } catch (e) {
+          console.error(`[ROOM: ${roomId}] Ошибка при сохранении комнаты (add-custom-circle):`, e);
+        }
+      }
+    });
+  }
+});
+
+socket.on('remove-all-custom-circles', async (data) => {
+  const { parentId } = data;
+  const roomId = socket.roomId;
+  const map = socket.currentMap;
+  const tactic = socket.currentTactic;
+
+  if (roomId && map && tactic && parentId) {
+    await withRoomLock(roomId, async () => {
+      let room = await getRoom(roomId);
+      if (room && room.maps[map] && room.maps[map][tactic]) {
+        const circlesToRemove = room.maps[map][tactic].filter(obj => obj.type.startsWith('custom-circle-') && obj.parentId === parentId);
+        room.maps[map][tactic] = room.maps[map][tactic].filter(obj => !(obj.type.startsWith('custom-circle-') && obj.parentId === parentId));
+
+        circlesToRemove.forEach(circle => {
+          io.to(roomId).emit('object-removed', { id: circle.id });
+        });
+
+        console.log(`[ROOM: ${roomId}] Удалено ${circlesToRemove.length} кастомных окружностей с корабля ${parentId} в тактике "${tactic}" карты "${map}"`);
+
+        try {
+          await saveRoom(roomId, room);
+        } catch (e) {
+          console.error(`[ROOM: ${roomId}] Ошибка при сохранении комнаты (remove-all-custom-circles):`, e);
+        }
+      }
+    });
+  }
+});
+  
+socket.on('remove-object', async (data) => {
+  const { id: objectIdToRemove } = data;
+  const roomId = socket.roomId;
+  const map = socket.currentMap;
+  const tactic = socket.currentTactic;
+
+  if (roomId && map && tactic && objectIdToRemove) {
+    await withRoomLock(roomId, async () => {
+      let room = await getRoom(roomId);
+      if (room && room.maps[map] && room.maps[map][tactic]) {
+        const objIndex = room.maps[map][tactic].findIndex(o => o.id === objectIdToRemove);
+
+        if (objIndex !== -1) {
+          const objToRemove = room.maps[map][tactic][objIndex]
+          room.maps[map][tactic].splice(objIndex, 1);
+
+          const isShip = (objToRemove.type.startsWith('l') || objToRemove.type.startsWith('k') || objToRemove.type === 'es');
+          let circlesToRemove = [];
+          if (isShip) {
+
+            for (let i = room.maps[map][tactic].length - 1; i >= 0; i--) {
+              const otherObj = room.maps[map][tactic][i];
+              if (otherObj.type.startsWith('custom-circle-') && otherObj.parentId === objToRemove.id) {
+                circlesToRemove.push({ id: otherObj.id, index: i });
+              }
+            }
+
+            for (const circle of circlesToRemove) {
+              room.maps[map][tactic].splice(circle.index, 1);
+            }
+
+            console.log(`[ROOM: ${roomId}] Удалён корабль ${objToRemove.id} и ${circlesToRemove.length} привязанных к нему кастомных окружностей.`);
+          } else {
+            console.log(`[ROOM: ${roomId}] Удалён объект ${objToRemove.id}.`);
+          }
+
+          io.to(roomId).emit('object-removed', { id: objToRemove.id });
+
+          circlesToRemove.forEach(circle => {
+             io.to(roomId).emit('object-removed', { id: circle.id });
+          });
 
           try {
             await saveRoom(roomId, room);
-            console.log(`[ROOM: ${roomId}] Объект удалён и состояние сохранено в Redis`);
+            console.log(`[ROOM: ${roomId}] Объект и его окружности удалены, состояние сохранено в Redis`);
           } catch (e) {
-            console.error('Ошибка при сохранении в Redis:', e);
+            console.error(`[ROOM: ${roomId}] Ошибка при сохранении в Redis:`, e);
           }
+        } else {
+          console.log(`[ROOM: ${roomId}] Объект с id ${objectIdToRemove} не найден для удаления в тактике "${tactic}" карты "${map}".`);
+        }
+      } else {
+        console.error(`[ROOM: ${roomId}] Не найдена карта "${map}" или тактика "${tactic}" при попытке удалить объект.`);
+      }
+    });
+  } else {
+    console.error('remove-object: Отсутствует roomId, currentMap, currentTactic или id удаляемого объекта.');
+  }
+});
+  
+socket.on('switch-tactic', async (data) => {
+  const { mapName, tacticName } = data;
+  const roomId = socket.roomId;
+  const currentMap = socket.currentMap;
+
+  if (roomId && mapName === currentMap) {
+    await withRoomLock(roomId, async () => {
+      let room = await getRoom(roomId);
+      if (room && room.maps[mapName] && room.maps[mapName][tacticName]) {
+        room.currentTactic = tacticName;
+
+        const socketsInRoom = await io.in(roomId).fetchSockets();
+        for (const sock of socketsInRoom) {
+          sock.currentTactic = tacticName;
+        }
+
+        io.to(roomId).emit('tactic-changed', { map: mapName, tactic: tacticName });
+
+        try {
+          await saveRoom(roomId, room);
+          console.log(`[ROOM: ${roomId}] Тактика изменена на ${tacticName} для карты ${mapName}, socket.currentTactic обновлён у всех.`);
+        } catch (e) {
+          console.error(`[ROOM: ${roomId}] Ошибка при сохранении комнаты (switch-tactic):`, e);
+        }
+      } else {
+         console.error(`[ROOM: ${roomId}] switch-tactic: Карта "${mapName}" или тактика "${tacticName}" не найдены в данных комнаты.`, room?.maps[mapName]);
+      }
+    });
+  } else {
+      console.error(`[ROOM: ${roomId}] switch-tactic: Карта в данных (${mapName}) не совпадает с текущей картой сокета (${socket.currentMap}) или roomId отсутствует.`);
+  }
+});
+
+socket.on('add-tactic', async (data) => {
+  const { mapName, tacticName } = data;
+  const roomId = socket.roomId;
+  const currentMap = socket.currentMap;
+
+  if (roomId && mapName === currentMap && isValidString(tacticName)) {
+    await withRoomLock(roomId, async () => {
+      let room = await getRoom(roomId);
+      if (room && room.maps[mapName]) {
+        if (!room.maps[mapName][tacticName]) {
+          room.maps[mapName][tacticName] = [];
+          room.currentTactic = tacticName;
+          socket.currentTactic = tacticName;
+
+          const socketsInRoom = await io.in(roomId).fetchSockets();
+          for (const sock of socketsInRoom) {
+            sock.currentTactic = tacticName;
+          }
+
+          io.to(roomId).emit('tactic-added', { map: mapName, tactic: tacticName, tacticsList: Object.keys(room.maps[mapName]) });
+          io.to(roomId).emit('tactic-changed', { map: mapName, tactic: tacticName });
+
+          try {
+            await saveRoom(roomId, room);
+            console.log(`[ROOM: ${roomId}] Новая тактика ${tacticName} добавлена для карты ${mapName}, currentTactic обновлён у всех.`);
+          } catch (e) {
+            console.error(`[ROOM: ${roomId}] Ошибка при сохранении комнаты (add-tactic):`, e);
+          }
+        } else {
+          socket.emit('tactic-error', { message: 'Тактика с таким именем уже существует.' });
         }
       }
-    }
-  });
+    });
+  } else {
+    socket.emit('tactic-error', { message: 'Неверное имя тактики или карта.' });
+  }
+});
+
+socket.on('remove-tactic', async (data) => {
+  const { mapName, tacticName } = data;
+  const roomId = socket.roomId;
+  const currentMap = socket.currentMap;
+
+  if (roomId && mapName === currentMap && tacticName) {
+    await withRoomLock(roomId, async () => {
+      let room = await getRoom(roomId);
+      if (room && room.maps[mapName] && room.maps[mapName][tacticName]) {
+        const tacticsList = Object.keys(room.maps[mapName]);
+        let newTactic;
+
+        if (tacticsList.length <= 1) {
+          console.log(`[ROOM: ${roomId}] Удаление последней тактики "${tacticName}". Создаём и переключаемся на 'Тактика 1'.`);
+          delete room.maps[mapName][tacticName];
+          const newDefaultTactic = 'Тактика 1';
+          room.maps[mapName][newDefaultTactic] = [];
+          room.currentTactic = newDefaultTactic;
+          newTactic = newDefaultTactic;
+
+          io.to(roomId).emit('tactic-replaced', {
+            map: mapName,
+            oldTactic: tacticName,
+            newTactic: newTactic,
+            tacticsList: Object.keys(room.maps[mapName])
+          });
+
+        } else {
+          delete room.maps[mapName][tacticName];
+          const remainingTactics = Object.keys(room.maps[mapName]);
+          newTactic = remainingTactics[0];
+          room.currentTactic = newTactic;
+
+          io.to(roomId).emit('tactic-removed', { map: mapName, tactic: tacticName, tacticsList: Object.keys(room.maps[mapName]), newTactic: newTactic });
+          io.to(roomId).emit('tactic-changed', { map: mapName, tactic: newTactic });
+        }
+
+        const socketsInRoom = await io.in(roomId).fetchSockets();
+        for (const sock of socketsInRoom) {
+          if(sock.currentMap === mapName) {
+              sock.currentTactic = newTactic;
+          }
+        }
+
+        try {
+          await saveRoom(roomId, room);
+          if (tacticsList.length <= 1) {
+             console.log(`[ROOM: ${roomId}] Последняя тактика "${tacticName}" заменена на "${newTactic}", currentTactic обновлён у всех.`);
+          } else {
+             console.log(`[ROOM: ${roomId}] Тактика "${tacticName}" удалена для карты ${mapName}, currentTactic обновлён у всех на '${newTactic}'.`);
+          }
+        } catch (e) {
+          console.error(`[ROOM: ${roomId}] Ошибка при сохранении комнаты (remove-tactic):`, e);
+        }
+      } else {
+           console.error(`[ROOM: ${roomId}] remove-tactic: Карта "${mapName}" или тактика "${tacticName}" не найдены в данных комнаты.`, room?.maps[mapName]);
+      }
+    });
+  }
+});
+  
+function isValidString(str) {
+  if (typeof str !== 'string' || str.length > 15) return false;
+  return /^[a-zA-Zа-яА-ЯёЁ0-9 ]*$/.test(str);
+}
+  
 });
 
 app.get('/ping', async (req, res) => {
@@ -383,16 +722,90 @@ app.get('/ping', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 80;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+async function migrateRoomsToNewTacticFormat() {
+  console.log('=== Запуск миграции комнат к новому формату тактик ===');
+  try {
+    const roomKeys = await redisClient.keys('room:*');
+    console.log(`Найдено ${roomKeys.length} комнат для проверки.`);
 
-process.on('SIGINT', async () => {
-  console.log('Сохраняем состояние перед завершением...');
-  await redisClient.quit();
-  process.exit(0);
-});
+    if (roomKeys.length === 0) {
+      console.log('Нет комнат для миграции.');
+      return;
+    }
+
+    for (const key of roomKeys) {
+      const roomId = key.replace('room:', '');
+      console.log(`Проверка комнаты: ${roomId}`);
+
+      let roomDataStr = await redisClient.get(key);
+      if (!roomDataStr) {
+        console.log(`  Комната ${key} пуста, пропускаем.`);
+        continue;
+      }
+
+      let room = JSON.parse(roomDataStr);
+      let migrationNeeded = false;
+
+      for (const mapName in room.maps) {
+        const mapData = room.maps[mapName];
+
+        if (typeof mapData === 'object' && mapData !== null && mapData.hasOwnProperty('objects') && Array.isArray(mapData.objects)) {
+            console.log(`  Найдена карта "${mapName}" в старом формате (объект с полем objects). Конвертируем...`);
+            const oldObjects = mapData.objects;
+            delete room.maps[mapName].objects;
+            if (Object.keys(room.maps[mapName]).length === 0) {
+                room.maps[mapName] = {
+                  'Тактика 1': oldObjects
+                };
+            } else {
+                room.maps[mapName] = {
+                  'Тактика 1': oldObjects
+                };
+                console.warn(`  Предупреждение: Карта "${mapName}" имела неожиданные поля besides 'objects'. Они будут потеряны при миграции.`);
+            }
+            migrationNeeded = true;
+            console.log(`  Карта "${mapName}" преобразована в новый формат: { "Тактика 1": [...] }`);
+        }
+        else if (typeof mapData === 'object' && mapData !== null) {
+            const keys = Object.keys(mapData);
+            let foundObjectsField = false;
+            for (const keyName of keys) {
+              if (keyName === 'objects') {
+                 console.error(`  ОШИБКА: Карта "${mapName}" имеет поле 'objects', но оно не в корне объекта. Структура:`, mapData);
+                 foundObjectsField = true;
+                 break;
+              }
+            }
+            if (!foundObjectsField) {
+                 console.log(`  Карта "${mapName}" уже в новом формате или имеет неизвестный формат (ключи: ${keys.join(', ')}).`);
+                 if (!room.currentTactic && keys.length > 0) {
+                     room.currentTactic = keys[0];
+                     console.log(`  Установлена currentTactic: ${room.currentTactic} для комнаты ${roomId}, карта ${mapName}`);
+                     migrationNeeded = true;
+                 }
+            }
+        } else {
+          console.error(`  ОШИБКА: Карта "${mapName}" имеет неожиданный тип данных:`, typeof mapData, mapData);
+        }
+      }
+
+      if (migrationNeeded) {
+        try {
+          await redisClient.set(key, JSON.stringify(room));
+          console.log(`  Комната ${roomId} обновлена и сохранена.`);
+        } catch (saveErr) {
+          console.error(`  ОШИБКА при сохранении комнаты ${roomId}:`, saveErr);
+        }
+      } else {
+         console.log(`  Комната ${roomId} не требовала миграции.`);
+      }
+    }
+
+    console.log('=== Завершена миграция комнат к новому формату тактик ===');
+  } catch (e) {
+    console.error('=== ОШИБКА при миграции комнат ===', e);
+  }
+}
 
 async function clearUsersOnStartup() {
   try {
@@ -418,21 +831,23 @@ async function clearUsersOnStartup() {
   }
 }
 
-clearUsersOnStartup();
+migrateRoomsToNewTacticFormat().then(() => {
+    console.log('Миграция завершена, запускаю очистку пользователей...');
+    return clearUsersOnStartup();
+}).then(() => {
+    console.log('Сервер готов к запуску.');
+}).catch(err => {
+    console.error('Критическая ошибка при подготовке сервера:', err);
+    process.exit(1);
+});
 
+const PORT = process.env.PORT || 80;
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+process.on('SIGINT', async () => {
+  console.log('Сохраняем состояние перед завершением...');
+  await redisClient.quit();
+  process.exit(0);
+});

@@ -17,9 +17,17 @@ const ctx = canvas.getContext('2d');
 const roomDisplay = document.getElementById('room-id-display');
 const usersList = document.getElementById('users-list');
 const shipsPanel = document.getElementById('ships-panel');
+const tacticSelect = document.getElementById('tactic-select');
+const newTacticBtn = document.getElementById('new-tactic-btn');
+const deleteTacticBtn = document.getElementById('delete-tactic-btn');
+const circleControlsDiv = document.getElementById('circle-controls');
+const addCircleBtn = document.getElementById('add-circle-btn');
+const removeAllCirclesBtn = document.getElementById('remove-all-circles-btn');
+const circleRadiusInput = document.getElementById('circle-radius-input');
 
 let allObjects = {};
 let currentMap = 'Греция.png';
+let currentTactic = 'Тактика 1';
 let objects = [];
 let selectedObject = null;
 let offsetX, offsetY;
@@ -35,6 +43,12 @@ let drawingVector = false;
 let vectorType = null;
 let vectorStartPoint = null;
 let tempVectorEnd = null;
+
+let holdClickInterval = null;
+
+let currentCircleColor = 'red';
+let currentCircleRadiusKm = 5.5;
+let circleActionMode = null;
 
 const shipRadii = {
   'Des Moines': 10,
@@ -68,6 +82,40 @@ const mapSizes = {
   'Северные воды.jpeg': 42,
   'Зона крушения Альфа.png': 42
 };
+
+const helpBtn = document.getElementById('help-btn');
+const helpModal = document.getElementById('help-modal');
+const modalClose = document.getElementById('modal-close');
+const modalOk = document.getElementById('modal-ok');
+
+helpBtn.addEventListener('click', () => {
+    helpModal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+});
+
+modalClose.addEventListener('click', () => {
+    helpModal.classList.remove('active');
+    document.body.style.overflow = '';
+});
+
+modalOk.addEventListener('click', () => {
+    helpModal.classList.remove('active');
+    document.body.style.overflow = '';
+});
+
+helpModal.addEventListener('click', (e) => {
+    if (e.target === helpModal) {
+        helpModal.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && helpModal.classList.contains('active')) {
+        helpModal.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+});
 
 function isValidString(str) {
   if (str.length > 15) return false;
@@ -110,6 +158,35 @@ joinBtn.onclick = () => {
   resizeCanvas();
 };
 
+document.querySelectorAll('input[name="circle-color"]').forEach(radio => {
+  radio.addEventListener('change', (e) => {
+    if (e.target.checked) {
+      currentCircleColor = e.target.value;
+    }
+  });
+});
+
+circleRadiusInput.addEventListener('input', (e) => {
+  const val = parseFloat(e.target.value);
+  if (!isNaN(val) && val > 0) {
+    currentCircleRadiusKm = val;
+  }
+});
+
+addCircleBtn.onclick = () => {
+  circleActionMode = 'add';
+  addCircleBtn.textContent = 'Выберите корабль...';
+  addCircleBtn.disabled = true;
+  removeAllCirclesBtn.disabled = true;
+};
+
+removeAllCirclesBtn.onclick = () => {
+  circleActionMode = 'remove_all';
+  removeAllCirclesBtn.textContent = 'Выберите корабль...';
+  addCircleBtn.disabled = true;
+  removeAllCirclesBtn.disabled = true;
+};
+
 const ripples = [];
 
 class Ripple {
@@ -139,6 +216,16 @@ class Ripple {
 }
 
 function drawObjects() {
+  if (!Array.isArray(objects)) {
+    console.error('CRITICAL ERROR: objects is not an array in drawObjects!', objects);
+    console.error('Тип objects:', typeof objects);
+    console.error('currentMap:', currentMap);
+    console.error('currentTactic:', currentTactic);
+    console.error('allObjects[currentMap]:', allObjects[currentMap]);
+    console.error('allObjects[currentMap][currentTactic]:', allObjects[currentMap] ? allObjects[currentMap][currentTactic] : 'N/A');
+    objects = []; // Восстановим, если сломалось
+  }
+  
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   if (bgLoaded) {
@@ -231,6 +318,17 @@ function drawObjects() {
       ctx.strokeStyle = ctx.strokeStyle;
       ctx.lineWidth = 2;
       ctx.stroke();
+    } else if (obj.type.startsWith('custom-circle-')) {
+      const mapSizeKm = mapSizes[currentMap] || 42;
+      const radiusPx = (obj.radiusKm / mapSizeKm) * canvas.width;
+
+      ctx.beginPath();
+      ctx.arc(obj.x, obj.y, radiusPx, 0, Math.PI * 2);
+      ctx.strokeStyle = obj.color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.stroke();
+      ctx.setLineDash([]);
     }
   });
 
@@ -334,7 +432,6 @@ document.querySelectorAll('.ship-item').forEach(item => {
       vectorType = type;
       vectorStartPoint = null;
       tempVectorEnd = null;
-      console.log('Режим рисования вектора:', type);
     }
   });
 });
@@ -362,24 +459,69 @@ socket.on('wrong-password', () => {
 });
 
 socket.on('room-data', (data) => {
-  allObjects = {};
-  allObjects[data.currentMap] = data.objects || [];
+  if (!allObjects[data.currentMap]) {
+    allObjects[data.currentMap] = {};
+  }
+  allObjects[data.currentMap][data.currentTactic] = data.objects || [];
+
   currentMap = data.currentMap;
-  objects = allObjects[currentMap];
+  currentTactic = data.currentTactic || 'Тактика 1';
+
+  objects = allObjects[currentMap][currentTactic];
 
   mapSelect.value = currentMap;
+
+  tacticSelect.innerHTML = '';
+  (data.tacticsForCurrentMap || ['Тактика 1']).forEach(tacticName => {
+    if (typeof tacticName === 'string') {
+      const opt = document.createElement('option');
+      opt.value = tacticName;
+      opt.textContent = tacticName;
+      tacticSelect.appendChild(opt);
+    }
+  });
+  tacticSelect.value = currentTactic;
+
   loadBackground(currentMap);
   updateUsersList(data.users);
 });
 
+tacticSelect.onchange = (e) => {
+  const selectedTactic = e.target.value;
+  if (selectedTactic && currentMap) {
+    socket.emit('switch-tactic', { mapName: currentMap, tacticName: selectedTactic });
+  }
+};
+
+newTacticBtn.onclick = () => {
+  const newTacticName = prompt('Введите название новой тактики:');
+  if (newTacticName) {
+    if (!isValidString(newTacticName)) {
+      alert('Название тактики должно содержать только латиницу, кириллицу, цифры и быть не длиннее 15 символов.');
+      return;
+    }
+    if ([...tacticSelect.options].some(opt => opt.value === newTacticName)) {
+      alert('Тактика с таким именем уже существует.');
+      return;
+    }
+    socket.emit('add-tactic', { mapName: currentMap, tacticName: newTacticName });
+  }
+};
+
+deleteTacticBtn.onclick = () => {
+  if (confirm('Вы точно хотите удалить текущую тактику?')) {
+    socket.emit('remove-tactic', { mapName: currentMap, tacticName: currentTactic });
+  }
+};
+
 socket.on('object-added', (obj) => {
   objects.push(obj);
-  allObjects[currentMap] = objects;
+  if (!allObjects[currentMap]) allObjects[currentMap] = {};
 });
 
 socket.on('vector-added', (obj) => {
   objects.push(obj);
-  allObjects[currentMap] = objects;
+  if (!allObjects[currentMap]) allObjects[currentMap] = {};
 });
 
 socket.on('object-updated', (data) => {
@@ -396,7 +538,6 @@ socket.on('object-updated', (data) => {
       if (data.label !== undefined) obj.label = data.label;
       if (data.rotation !== undefined) obj.rotation = data.rotation;
     }
-    allObjects[currentMap] = objects;
   }
 });
 
@@ -404,7 +545,6 @@ socket.on('object-removed', (data) => {
   const index = objects.findIndex(o => o.id === data.id);
   if (index !== -1) {
     objects.splice(index, 1);
-    allObjects[currentMap] = objects;
   }
 });
 
@@ -421,13 +561,24 @@ socket.on('user-left', (userId) => {
 });
 
 function updateUsersList(users) {
+
+  if (!usersList) {
+    console.error('ERROR: Элемент с id "users-list" не найден в DOM!');
+    return;
+  }
+
   usersList.innerHTML = '';
-  users.forEach(user => {
-    const li = document.createElement('li');
-    li.id = `user-${user.id}`;
-    li.textContent = user.name;
-    usersList.appendChild(li);
-  });
+
+  if (users && Array.isArray(users)) {
+    users.forEach(user => {
+      const li = document.createElement('li');
+      li.id = `user-${user.id}`;
+      li.textContent = user.name;
+      usersList.appendChild(li);
+    });
+  } else {
+    console.error('DEBUG: users в updateUsersList не является массивом или null/undefined:', users);
+  }
 }
 
 let currentTool = null;
@@ -440,7 +591,6 @@ canvas.onclick = (e) => {
 
     if (!vectorStartPoint) {
       vectorStartPoint = { x, y };
-      console.log('Начало вектора:', vectorStartPoint);
     } else {
       tempVectorEnd = { x, y };
       const vectorObj = {
@@ -453,7 +603,7 @@ canvas.onclick = (e) => {
       };
 
       objects.push(vectorObj);
-      allObjects[currentMap] = objects;
+      allObjects[currentMap][currentTactic] = objects;
       drawObjects();
 
       socket.emit('add-vector', vectorObj);
@@ -462,7 +612,6 @@ canvas.onclick = (e) => {
       vectorType = null;
       vectorStartPoint = null;
       tempVectorEnd = null;
-      console.log('Вектор добавлен:', vectorObj);
     }
     return;
   }
@@ -472,6 +621,54 @@ canvas.onclick = (e) => {
   const y = e.clientY - rect.top;
   const id = Date.now() + Math.random();
 
+  if (circleActionMode) {
+    for (let i = objects.length - 1; i >= 0; i--) {
+      const obj = objects[i];
+      let inBounds = false;
+
+      if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
+        const img = shipImages[obj.type][obj.color];
+        if (img && img.complete) {
+          inBounds = x >= obj.x - img.width / 2 && x <= obj.x + img.width / 2 &&
+                     y >= obj.y - img.height / 2 && y <= obj.y + img.height / 2;
+        }
+      }
+
+      if (inBounds) {
+        if (circleActionMode === 'add') {
+          const circleObj = {
+            id: Date.now() + '-' + Math.random(),
+            type: `custom-circle-${currentCircleColor}`,
+            parentId: obj.id,
+            x: obj.x,
+            y: obj.y,
+            radiusKm: currentCircleRadiusKm,
+            color: currentCircleColor
+          };
+          socket.emit('add-custom-circle', circleObj);
+        } else if (circleActionMode === 'remove_all') {
+          socket.emit('remove-all-custom-circles', { parentId: obj.id });
+        }
+
+        circleActionMode = null;
+        addCircleBtn.textContent = 'Добавить окружность';
+        removeAllCirclesBtn.textContent = 'Удалить все кастомные окр. с корабля';
+        addCircleBtn.disabled = false;
+        removeAllCirclesBtn.disabled = false;
+        return;
+      }
+    }
+    if (circleActionMode) {
+      console.log('DEBUG: Действие отменено: клик не на корабль.');
+      circleActionMode = null;
+      addCircleBtn.textContent = 'Добавить окружность';
+      removeAllCirclesBtn.textContent = 'Удалить все кастомные окр. с корабля';
+      addCircleBtn.disabled = false;
+      removeAllCirclesBtn.disabled = false;
+    }
+    return;
+  }
+  
   ripples.push(new Ripple(x, y));
 
   socket.emit('click-effect', { x, y });
@@ -481,7 +678,8 @@ canvas.onclick = (e) => {
     if (!text) return;
     const obj = { id, type: 'note', x, y, text };
     objects.push(obj);
-    allObjects[currentMap] = objects;
+    if (!allObjects[currentMap]) allObjects[currentMap] = {};
+    allObjects[currentMap][currentTactic] = objects;
     socket.emit('add-object', obj);
   }
 };
@@ -501,6 +699,10 @@ socket.on('click-effect', (data) => {
   ripples.push(new Ripple(data.x, data.y));
 });
 
+socket.on('hold-click-effect', (data) => {
+  ripples.push(new Ripple(data.x, data.y));
+});
+
 canvas.oncontextmenu = (e) => {
   e.preventDefault();
 
@@ -509,7 +711,6 @@ canvas.oncontextmenu = (e) => {
     vectorType = null;
     vectorStartPoint = null;
     tempVectorEnd = null;
-    console.log('Режим вектора отменён');
     e.preventDefault();
     return;
   }
@@ -533,7 +734,7 @@ canvas.oncontextmenu = (e) => {
     if (inBounds) {
       obj.rotation = (obj.rotation || 0) + 1;
       if (obj.rotation > 7) obj.rotation = 0;
-      allObjects[currentMap] = objects;
+      allObjects[currentMap][currentTactic] = objects;
 
       socket.emit('update-object', {
         id: obj.id,
@@ -549,6 +750,85 @@ canvas.oncontextmenu = (e) => {
 };
 
 canvas.onmousedown = (e) => {
+  if (e.button === 0) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    let clickedOnObject = false;
+
+    for (let i = objects.length - 1; i >= 0; i--) {
+      const obj = objects[i];
+      let inBounds = false;
+
+      if (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es') {
+        const img = shipImages[obj.type][obj.color];
+        if (img && img.complete) {
+          inBounds = x >= obj.x - img.width / 2 && x <= obj.x + img.width / 2 &&
+                     y >= obj.y - img.height / 2 && y <= obj.y + img.height / 2;
+        }
+      } else if (obj.type === 'note') {
+        inBounds = x >= obj.x - 30 && x <= obj.x + 70 && y >= obj.y - 20 && y <= obj.y + 10;
+      } else if (obj.type.startsWith('vector-')) {
+        const centerX = (obj.startX + obj.endX) / 2;
+        const centerY = (obj.startY + obj.endY) / 2;
+
+        const dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+        inBounds = dist < 20;
+      }
+
+      if (inBounds) {
+        clickedOnObject = true;
+        break;
+      }
+    }
+
+    if (!clickedOnObject) {
+      if (holdClickInterval) {
+        clearInterval(holdClickInterval);
+      }
+    
+      let currentMousePos = { x: 0, y: 0 };
+    
+      const updateMousePos = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        currentMousePos.x = e.clientX - rect.left;
+        currentMousePos.y = e.clientY - rect.top;
+      };
+    
+      updateMousePos(e);
+    
+      const emitEffect = () => {
+        socket.emit('hold-click-effect', currentMousePos);
+      };
+    
+      emitEffect();
+    
+      holdClickInterval = setInterval(emitEffect, 150);
+
+      const handleMouseMove = (e) => {
+        updateMousePos(e);
+      };
+    
+      document.addEventListener('mousemove', handleMouseMove);
+    
+      const stopHoldClick = () => {
+        if (holdClickInterval) {
+          clearInterval(holdClickInterval);
+          holdClickInterval = null;
+        }
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', stopHoldClick);
+        document.removeEventListener('mouseleave', stopHoldClick);
+      };
+    
+      document.addEventListener('mouseup', stopHoldClick);
+      document.addEventListener('mouseleave', stopHoldClick);
+    
+      return;
+    }
+  }
+
   if (drawingVector) {
     return;
   }
@@ -635,7 +915,7 @@ document.addEventListener('mousemove', (e) => {
       selectedObject.y = newY;
     }
 
-    allObjects[currentMap] = objects;
+    allObjects[currentMap][currentTactic] = objects;
     drawObjects();
   }
 
@@ -701,7 +981,7 @@ if (isDragging && selectedObject) {
         obj.x = selectedObject.x;
         obj.y = selectedObject.y;
       }
-      allObjects[currentMap] = objects;
+      allObjects[currentMap][currentTactic] = objects;
     }
 
     drawObjects();
@@ -725,7 +1005,7 @@ if (isDragging && selectedObject) {
     if (mouseX >= trashRect.left && mouseX <= trashRect.right &&
         mouseY >= trashRect.top && mouseY <= trashRect.bottom) {
       objects.splice(draggedObj.index, 1);
-      allObjects[currentMap] = objects;
+      allObjects[currentMap][currentTactic] = objects;
       drawObjects();
 
       socket.emit('remove-object', { id: draggedObj.obj.id });
@@ -761,6 +1041,10 @@ canvas.onmousemove = (e) => {
 };
 
 canvas.onmouseup = () => {
+  if (holdClickInterval) {
+    clearInterval(holdClickInterval);
+    holdClickInterval = null;
+  }
 };
 
 socket.on('drag-end-effect', (data) => {
@@ -768,6 +1052,10 @@ socket.on('drag-end-effect', (data) => {
 });
 
 canvas.onmouseleave = () => {
+  if (holdClickInterval) {
+    clearInterval(holdClickInterval);
+    holdClickInterval = null;
+  }
   isDragging = false;
   selectedObject = null;
   canvas.style.cursor = 'default';
@@ -779,7 +1067,6 @@ canvas.ondblclick = (e) => {
     vectorType = null;
     vectorStartPoint = null;
     tempVectorEnd = null;
-    console.log('Режим вектора отменён');
     return;
   }
 
@@ -808,11 +1095,10 @@ canvas.ondblclick = (e) => {
         }
 
         obj.label = newLabel;
-        allObjects[currentMap] = objects;
+        allObjects[currentMap][currentTactic] = objects;
 
         if (socket.connected) {
           socket.emit('update-object', { id: obj.id, x: obj.x, y: obj.y, label: obj.label });
-          console.log('[DEBUG] update-object отправлен:', obj.label);
         } else {
           console.warn('Соединение с сервером потеряно, обновление не отправлено:', obj.label);
           alert('Соединение с сервером потеряно. Подпись не обновлена.');
@@ -843,13 +1129,11 @@ canvas.addEventListener('dragover', (e) => {
 });
 
 canvas.addEventListener('drop', (e) => {
-  // === ОТМЕНА РЕЖИМА ВЕКТОРА ===
   if (drawingVector) {
     drawingVector = false;
     vectorType = null;
     vectorStartPoint = null;
     tempVectorEnd = null;
-    console.log('Режим вектора отменён');
     return;
   }
 
@@ -884,7 +1168,8 @@ canvas.addEventListener('drop', (e) => {
 
   const obj = { id, type, x, y, color, label: '', rotation: 0 };
   objects.push(obj);
-  allObjects[currentMap] = objects;
+  if (!allObjects[currentMap]) allObjects[currentMap] = {};
+  allObjects[currentMap][currentTactic] = objects;
   socket.emit('add-object', obj);
 });
 
@@ -910,18 +1195,158 @@ socket.on('map-objects', (data) => {
 socket.on('map-changed', (data) => {
   currentMap = data.map;
   mapSelect.value = currentMap;
-  if (!allObjects[data.map]) {
-    socket.emit('get-map-objects', { map: data.map });
+
+  tacticSelect.innerHTML = '';
+  (data.tacticsList || ['Тактика 1']).forEach(tacticName => {
+    if (typeof tacticName === 'string') {
+      const opt = document.createElement('option');
+      opt.value = tacticName;
+      opt.textContent = tacticName;
+      tacticSelect.appendChild(opt);
+    }
+  });
+
+  currentTactic = data.currentTactic || 'Тактика 1';
+  tacticSelect.value = currentTactic;
+
+  if (!allObjects[currentMap]) {
+    allObjects[currentMap] = {};
+  }
+
+  if (!allObjects[currentMap][currentTactic]) {
+    allObjects[currentMap][currentTactic] = [];
+    objects = allObjects[currentMap][currentTactic];
+    drawObjects();
+
+    socket.emit('get-objects-for-tactic', { map: currentMap, tactic: currentTactic });
   } else {
-    objects = allObjects[data.map];
-    loadBackground(currentMap);
+    objects = allObjects[currentMap][currentTactic];
+  }
+
+  loadBackground(currentMap);
+});
+
+socket.on('tactic-objects', (data) => {
+  const { map, tactic, objects: tacticObjects } = data;
+
+  if (!allObjects[map]) {
+    allObjects[map] = {};
+  }
+
+  allObjects[map][tactic] = tacticObjects;
+
+  if (map === currentMap && tactic === currentTactic) {
+    objects = allObjects[map][tactic];
+    drawObjects();
+  } else {
+    console.log(`[DEBUG] Объекты получены для неактивной карты/тактики (${map}/${tactic}), не обновляем objects.`);
+  }
+});
+
+socket.on('tactic-changed', (data) => {
+  if (data.map === currentMap) {
+    currentTactic = data.tactic;
+    tacticSelect.value = currentTactic;
+
+    if (allObjects[currentMap] && allObjects[currentMap][currentTactic]) {
+      objects = allObjects[currentMap][currentTactic];
+    } else {
+      objects = [];
+      if (!allObjects[currentMap]) allObjects[currentMap] = {};
+      allObjects[currentMap][currentTactic] = objects;
+      socket.emit('get-objects-for-tactic', { map: currentMap, tactic: currentTactic });
+    }
+    
+    drawObjects();
+  }
+});
+
+socket.on('tactic-added', (data) => {
+  if (data.map === currentMap) {
+    tacticSelect.innerHTML = '';
+    data.tacticsList.forEach(tacticName => {
+      if (typeof tacticName === 'string') {
+        const opt = document.createElement('option');
+        opt.value = tacticName;
+        opt.textContent = tacticName;
+        tacticSelect.appendChild(opt);
+      }
+    });
+    tacticSelect.value = data.tactic;
+    currentTactic = data.tactic;
+    objects = [];
+
+    drawObjects();
+  }
+});
+
+socket.on('tactic-removed', (data) => {
+  if (data.map === currentMap) {
+    const optionToRemove = tacticSelect.querySelector(`option[value="${data.tactic}"]`);
+    if (optionToRemove) {
+      optionToRemove.remove();
+    }
+
+    if (allObjects[currentMap] && allObjects[currentMap].hasOwnProperty(data.tactic)) {
+      delete allObjects[currentMap][data.tactic];
+    } else {
+    }
+
+    currentTactic = data.newTactic;
+    tacticSelect.value = currentTactic;
+
+    if (allObjects[currentMap] && allObjects[currentMap][currentTactic]) {
+      objects = allObjects[currentMap][currentTactic];
+    } else {
+      objects = [];
+      if (!allObjects[currentMap]) allObjects[currentMap] = {};
+      allObjects[currentMap][currentTactic] = objects;
+    }
+    drawObjects();
+  }
+});
+
+socket.on('tactic-replaced', (data) => {
+  if (data.map === currentMap) {
+
+    if (data.oldTactic === data.newTactic) {
+        if (allObjects[currentMap]) {
+            allObjects[currentMap][data.newTactic] = [];
+        }
+    }
+
+    const oldOption = tacticSelect.querySelector(`option[value="${data.oldTactic}"]`);
+    if (oldOption) {
+      oldOption.remove();
+    } else {
+    }
+
+    let newOpt = tacticSelect.querySelector(`option[value="${data.newTactic}"]`);
+    if (newOpt) {
+    } else {
+        newOpt = document.createElement('option');
+        newOpt.value = data.newTactic;
+        newOpt.textContent = data.newTactic;
+        tacticSelect.appendChild(newOpt);
+    }
+
+    currentTactic = data.newTactic;
+    tacticSelect.value = currentTactic;
+
+    if (allObjects[currentMap] && allObjects[currentMap][currentTactic]) {
+      objects = allObjects[currentMap][currentTactic];
+    } else {
+      if (!allObjects[currentMap]) allObjects[currentMap] = {};
+      allObjects[currentMap][currentTactic] = [];
+      objects = allObjects[currentMap][currentTactic];
+    }
+    drawObjects();
   }
 });
 
 socket.on('connect', () => {
   console.log('Новое подключение, ID:', socket.id);
   if (currentRoomId && currentUserName) {
-    console.log('Отправляем join-room при connect...');
     socket.emit('join-room', {
       roomId: currentRoomId,
       userName: currentUserName,
@@ -937,107 +1362,6 @@ socket.on('disconnect', (reason) => {
 resizeCanvas();
 window.onresize = resizeCanvas;
 
-function addRadiusInfoTable() {
-  const canvas = document.getElementById('canvas');
-  if (!canvas) {
-    console.log('Canvas не найден!');
-    return;
-  }
-
-  const parent = canvas.parentElement;
-  if (getComputedStyle(parent).position !== 'relative') {
-    parent.style.position = 'relative';
-  }
-
-  const tableDiv = document.createElement('div');
-  tableDiv.id = 'radius-info';
-  tableDiv.style.position = 'absolute';
-  tableDiv.style.top = '50%';
-  tableDiv.style.transform = 'translateY(-50%)';
-  tableDiv.style.left = 'calc(50% + 500px)';
-  tableDiv.style.width = '160px';
-  tableDiv.style.background = 'rgba(0, 0, 0, 0.7)';
-  tableDiv.style.color = 'white';
-  tableDiv.style.padding = '10px';
-  tableDiv.style.borderRadius = '5px';
-  tableDiv.style.fontSize = '12px';
-  tableDiv.style.zIndex = '10';
-  tableDiv.style.fontFamily = 'Arial, sans-serif';
-  tableDiv.style.boxSizing = 'border-box';
-
-  const title = document.createElement('h4');
-  title.textContent = 'Радиус РЛС (км)';
-  title.style.margin = '0 0 10px 0';
-  title.style.color = 'yellow';
-  title.style.fontSize = '13px';
-  tableDiv.appendChild(title);
-
-  const table = document.createElement('table');
-  table.id = 'radius-table';
-  table.style.width = '100%';
-  table.style.borderCollapse = 'collapse';
-  table.style.fontSize = '11px';
-
-  const headerRow = document.createElement('tr');
-  const th1 = document.createElement('th');
-  th1.textContent = 'Корабль';
-  th1.style.textAlign = 'left';
-  th1.style.padding = '2px';
-  th1.style.color = 'yellow';
-  const th2 = document.createElement('th');
-  th2.textContent = 'Радиус';
-  th2.style.textAlign = 'left';
-  th2.style.padding = '2px';
-  th2.style.color = 'yellow';
-  headerRow.appendChild(th1);
-  headerRow.appendChild(th2);
-  table.appendChild(headerRow);
-
-  for (const name in shipRadii) {
-    const row = document.createElement('tr');
-    const td1 = document.createElement('td');
-    td1.textContent = name;
-    td1.style.padding = '2px';
-    td1.style.borderBottom = '1px solid rgba(255, 255, 255, 0.2)';
-    const td2 = document.createElement('td');
-    td2.textContent = shipRadii[name];
-    td2.style.padding = '2px';
-    td2.style.borderBottom = '1px solid rgba(255, 255, 255, 0.2)';
-    row.appendChild(td1);
-    row.appendChild(td2);
-    table.appendChild(row);
-  }
-
-  const trashcan = document.createElement('div');
-  trashcan.id = 'trashcan';
-  trashcan.innerHTML = '🗑️';
-  trashcan.style = `
-    position: absolute;
-    top: 10px;
-    left: calc(50% + 500px);
-    width: 80px;
-    height: 80px;
-    background: white;
-    border-radius: 50%;
-    border: 2px solid black;
-    z-index: 100;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 24px;
-    pointer-events: auto;
-  `;
-
-  parent.appendChild(trashcan);
-  
-  tableDiv.appendChild(table);
-
-  parent.appendChild(tableDiv);
-}
-
-addRadiusInfoTable();
-
 setInterval(() => {
   fetch('/ping')
     .then(response => response.text())
@@ -1052,6 +1376,13 @@ window.dumpAllObjects = () => {
   console.log('Объекты на текущей карте:', objects);
   console.log('=====================================');
 };
+
+
+
+
+
+
+
 
 
 
