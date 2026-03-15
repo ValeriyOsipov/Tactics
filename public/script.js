@@ -83,6 +83,40 @@ const mapSizes = {
   'Зона крушения Альфа.png': 42
 };
 
+const helpBtn = document.getElementById('help-btn');
+const helpModal = document.getElementById('help-modal');
+const modalClose = document.getElementById('modal-close');
+const modalOk = document.getElementById('modal-ok');
+
+helpBtn.addEventListener('click', () => {
+    helpModal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+});
+
+modalClose.addEventListener('click', () => {
+    helpModal.classList.remove('active');
+    document.body.style.overflow = '';
+});
+
+modalOk.addEventListener('click', () => {
+    helpModal.classList.remove('active');
+    document.body.style.overflow = '';
+});
+
+helpModal.addEventListener('click', (e) => {
+    if (e.target === helpModal) {
+        helpModal.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && helpModal.classList.contains('active')) {
+        helpModal.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+});
+
 function isValidString(str) {
   if (str.length > 15) return false;
   return /^[a-zA-Zа-яА-ЯёЁ0-9 ]*$/.test(str);
