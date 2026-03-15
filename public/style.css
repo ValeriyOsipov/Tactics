@@ -4,30 +4,12 @@
   background-position: center;
   background-repeat: no-repeat;
   height: 100vh;
+  width: 100vw;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   gap: 10px;
-}
-
-.login-screen input, .login-screen button {
-  padding: 10px;
-  font-size: 16px;
-  border-radius: 5px;
-  border: 1px solid #ccc;
-  outline: none;
-}
-
-.login-screen button {
-  cursor: pointer;
-  background-color: #007bff;
-  color: white;
-  border: none;
-}
-
-.login-screen button:hover {
-  background-color: #0056b3;
 }
 
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
@@ -229,7 +211,6 @@ div {
 
 .ships-grid .ship-item img {
     object-fit: contain;
-    pointer-events: none;
 }
 
 .vectors-grid {
@@ -297,4 +278,27 @@ div {
     border-style: solid;
     box-shadow: 0 0 30px rgba(255, 85, 85, 0.6);
     transform: scale(1.02);
+}
+
+.login-screen input {
+    width: 250px;
+}
+
+.login-screen input, .login-screen button {
+  padding: 10px;
+  font-size: 16px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  outline: none;
+}
+
+.login-screen button {
+  cursor: pointer;
+  background-color: #007bff;
+  color: white;
+  border: none;
+}
+
+.login-screen button:hover {
+  background-color: #0056b3;
 }
