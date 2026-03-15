@@ -284,6 +284,12 @@ div {
     width: 250px;
 }
 
+#room-id-display {
+    text-transform: none;
+    letter-spacing: 0;
+    color: #fff;
+    font-weight: bold;
+}
 .login-screen input, .login-screen button {
   padding: 10px;
   font-size: 16px;
