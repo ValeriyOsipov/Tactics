@@ -208,9 +208,9 @@ class Ripple {
     this.y = y;
     this.radius = 0;
     this.maxRadius = 20;
-    this.speed = 1.2;
+    this.speed = 0.8;
     this.alpha = 1;
-    this.decay = 0.03;
+    this.decay = 0.015;
   }
 
   update() {
@@ -222,8 +222,8 @@ class Ripple {
   draw(ctx) {
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(255, 0, 0, ${this.alpha})`;
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = `rgba(240, 240, 240, ${this.alpha})`;
+    ctx.lineWidth = 8;
     ctx.stroke();
   }
 }
