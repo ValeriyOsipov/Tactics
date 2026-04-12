@@ -117,6 +117,19 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+function generateUserId() {
+    return 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
+let userId = localStorage.getItem('userId');
+if (userId === 'undefined' || userId === null || userId === '' || !userId) {
+    userId = generateUserId();
+    localStorage.setItem('userId', userId);
+    console.log('Сгенерирован и сохранён новый userId:', userId);
+} else {
+    console.log('Используем сохранённый userId:', userId);
+}
+
 function isValidString(str) {
   if (str.length > 15) return false;
   return /^[a-zA-Zа-яА-ЯёЁ0-9 ]*$/.test(str);
@@ -151,7 +164,7 @@ joinBtn.onclick = () => {
   currentUserName = userName;
   currentPassword = password;
   
-  socket.emit('join-room', { roomId, userName, password });
+  socket.emit('join-room', { roomId, userName, userId, password });
   roomInput.style.display = 'none';
   canvasContainer.style.display = 'block';
   roomDisplay.textContent = roomId;
@@ -1350,6 +1363,7 @@ socket.on('connect', () => {
     socket.emit('join-room', {
       roomId: currentRoomId,
       userName: currentUserName,
+      userId: userId,
       password: currentPassword || ''
     });
   }
