@@ -581,7 +581,7 @@ io.on('connection', (socket) => {
 
           }
 
-          socket.to(roomId).emit('user-left', room.users[userId]);
+          io.to(roomId).emit('user-left', userId)
 
           console.log(`Пользователь ${userId} с socketId ${socketId} покинул комнату ${roomId} (локально).`);
 
