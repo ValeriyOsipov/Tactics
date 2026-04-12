@@ -598,7 +598,21 @@ io.on('connection', (socket) => {
             // Возможен дубль или ошибка.
         }
       });
-
+      } catch (lockErr) {
+        // <<< ОШИБКА БЛОКИРОВКИ ПРИ ОТКЛЮЧЕНИИ >>>
+        if (lockErr.name === 'LockError') {
+          console.error(`[DISCONNECT] Не удалось получить блокировку для комнаты ${roomId} при отключении:`, lockErr.message);
+          // socket.to(roomId).emit('error', ...); // Смысл отправлять ошибку пользователю, который уже отключился?
+          // Лучше просто залогировать
+        } else {
+          console.error(`[ROOM: ${roomId}] Ошибка в обработчике disconnect:`, lockErr);
+        }
+      }
+    } else {
+        console.log(`Пользователь ${socket.id} отключился без комнаты.`);
+    }
+  });
+      
   // --- ADD CUSTOM CIRCLE ---
   socket.on('add-custom-circle', async (circleObj) => {
     const roomId = socket.roomId;
