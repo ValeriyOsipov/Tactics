@@ -186,7 +186,7 @@ io.on('connection', (socket) => {
   });
 
   // --- JOIN ROOM ---
-  socket.on('join-room', async ({ roomId, userName, password }) => {
+  socket.on('join-room', async ({ roomId, userName, userId, password }) => {
     // <<< НЕ ОБОРАЧИВАЕМ socket.join В withRoomLock >>>
     socket.join(roomId);
 
@@ -223,13 +223,24 @@ io.on('connection', (socket) => {
           }
         }
 
-        room.users[socket.id] = { id: socket.id, name: userName || `User ${Object.keys(room.users).length + 1}` };
+        if (room.users[userId]) {
+            console.log(`[ROOM: ${roomId}] ВНИМАНИЕ: Пользователь ${userId} (${room.users[userId].name}) уже существует в списке. Возможно, предыдущий вход не был корректно завершён. Обновляем socket.id и имя.`);
+            room.users[userId].socketId = socket.id;
+            if (room.users[userId].name !== userName) {
+                console.log(`[ROOM: ${roomId}] Имя пользователя ${userId} изменилось с "${room.users[userId].name}" на "${userName}".`);
+                room.users[userId].name = userName;
+            }
+        } else {
+            console.log(`[ROOM: ${roomId}] Новый пользователь ${userId} (${userName}) зашёл в комнату.`);
+            room.users[userId] = { id: userId, name: userName, socketId: socket.id };
+        }
 
+        socket.userId = userId;
         socket.currentTactic = currentTactic;
         socket.roomId = roomId;
         socket.currentMap = currentMap;
 
-        console.log(`Пользователь ${socket.id} (${userName}) зашёл в комнату ${roomId}`);
+        console.log(`Пользователь ${userId} (${userName}) зашёл в комнату ${roomId}`);
 
         socket.emit('room-data', {
           objects: room.maps[currentMap][currentTactic],
@@ -239,7 +250,7 @@ io.on('connection', (socket) => {
           users: Object.values(room.users)
         });
 
-        socket.to(roomId).emit('user-joined', room.users[socket.id]);
+        socket.to(roomId).emit('user-joined', room.users[userId]);
 
         try {
           await saveRoom(roomId, room);
@@ -553,24 +564,38 @@ io.on('connection', (socket) => {
   // --- DISCONNECT ---
   socket.on('disconnect', async (reason) => {
     const roomId = socket.roomId;
+    const userId = socket.userId;
+    const socketId = socket.id;
     if (roomId) {
       console.log(`[ROOM: ${roomId}] Пользователь ${socket.id} отключился, причина: ${reason}`);
-      try {
-        await withRoomLock(roomId, async () => {
-          let room = await getRoom(roomId);
-          if (room) {
-            delete room.users[socket.id];
-            socket.to(roomId).emit('user-left', socket.id);
-            console.log(`Пользователь ${socket.id} покинул комнату ${roomId}`);
+      console.log(`[DISCONNECT] socket.userId = ${userId}`); // <<< Лог для отладки >>>
+    try {
+      await withRoomLock(roomId, async () => {
+        let room = await getRoom(roomId);
+        if (room && userId && room.users[userId]) {
+          if (room.users[userId].socketId === socketId) {
+            console.log(`[ROOM: ${roomId}] Удаляем запись пользователя ${userId} из room.users.`);
+            delete room.users[userId];
+          } else {
+            console.warn(`[ROOM: ${roomId}] socketId ${socketId} не совпадает с привязанным у пользователя ${userId}. Ожидалось: ${room.users[userId].socketId}. Удаление записи отменено.`);
 
-            try {
-              await saveRoom(roomId, room);
-              console.log(`[ROOM: ${roomId}] Состояние комнаты сохранено в Redis (disconnect)`);
-            } catch (e) {
-              console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (disconnect):`, e);
-            }
           }
-        });
+
+          io.to(roomId).emit('user-left', userId)
+
+          console.log(`Пользователь ${userId} с socketId ${socketId} покинул комнату ${roomId} (локально).`);
+
+          try {
+            await saveRoom(roomId, room);
+            console.log(`[ROOM: ${roomId}] Состояние комнаты сохранено в Redis (disconnect)`);
+          } catch (e) {
+            console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (disconnect):`, e);
+          }
+        } else {
+            console.log(`[ROOM: ${roomId}] Пользователь ${userId || 'unknown'} не найден в room.users при отключении socketId ${socketId}.`);
+            // Возможен дубль или ошибка.
+        }
+      });
       } catch (lockErr) {
         // <<< ОШИБКА БЛОКИРОВКИ ПРИ ОТКЛЮЧЕНИИ >>>
         if (lockErr.name === 'LockError') {
@@ -585,7 +610,7 @@ io.on('connection', (socket) => {
         console.log(`Пользователь ${socket.id} отключился без комнаты.`);
     }
   });
-
+      
   // --- ADD CUSTOM CIRCLE ---
   socket.on('add-custom-circle', async (circleObj) => {
     const roomId = socket.roomId;
