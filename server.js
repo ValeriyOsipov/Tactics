@@ -181,7 +181,8 @@ const availableMaps = [
   'Раскол.png',
   'Слёзы пустыни.png',
   'Сонный Бохайвань.png',
-  'Фарерские острова.png'
+  'Фарерские острова.png',
+  'Атлантика.png'
 ];
 
 io.on('connection', (socket) => {
