@@ -87,7 +87,8 @@ const mapSizes = {
   'Слёзы пустыни.png': 42,
   'Сонный Бохайвань.png': 42,
   'Фарерские острова.png': 42,
-  'Атлантика.png': 42
+  'Атлантика.png': 42,
+  'Северное сияние.png': 48
 };
 
 const helpBtn = document.getElementById('help-btn');
@@ -534,16 +535,27 @@ deleteTacticBtn.onclick = () => {
   }
 };
 
+// 1. ОБНОВИ object-added (добавь проверку на дубликат)
 socket.on('object-added', (obj) => {
-  objects.push(obj);
-  if (!allObjects[currentMap]) allObjects[currentMap] = {};
+  const exists = objects.find(o => o.id === obj.id);
+  if (!exists) {
+    objects.push(obj);
+    if (!allObjects[currentMap]) allObjects[currentMap] = {};
+    allObjects[currentMap][currentTactic] = objects;
+  }
 });
 
+// 2. ОБНОВИ vector-added (аналогично)
 socket.on('vector-added', (obj) => {
-  objects.push(obj);
-  if (!allObjects[currentMap]) allObjects[currentMap] = {};
+  const exists = objects.find(o => o.id === obj.id);
+  if (!exists) {
+    objects.push(obj);
+    if (!allObjects[currentMap]) allObjects[currentMap] = {};
+    allObjects[currentMap][currentTactic] = objects;
+  }
 });
 
+// 3. ОБНОВИ object-updated (удаляй дубликаты при обновлении)
 socket.on('object-updated', (data) => {
   const obj = objects.find(o => o.id === data.id);
   if (obj) {
@@ -558,13 +570,24 @@ socket.on('object-updated', (data) => {
       if (data.label !== undefined) obj.label = data.label;
       if (data.rotation !== undefined) obj.rotation = data.rotation;
     }
+    
+    // Удаляем все дубликаты этого объекта (если они есть)
+    objects = objects.filter((o, index) => {
+      return o.id !== data.id || index === objects.findIndex(x => x.id === data.id);
+    });
+    
+    if (!allObjects[currentMap]) allObjects[currentMap] = {};
+    allObjects[currentMap][currentTactic] = objects;
   }
 });
 
 socket.on('object-removed', (data) => {
-  const index = objects.findIndex(o => o.id === data.id);
-  if (index !== -1) {
-    objects.splice(index, 1);
+  const initialLength = objects.length;
+  objects = objects.filter(o => o.id !== data.id);
+  
+  if (objects.length !== initialLength) {
+    if (!allObjects[currentMap]) allObjects[currentMap] = {};
+    allObjects[currentMap][currentTactic] = objects;
   }
 });
 
@@ -1205,9 +1228,14 @@ mapSelect.onchange = (e) => {
 };
 
 socket.on('map-objects', (data) => {
-  allObjects[data.map] = data.objects || [];
+  if (data.tactics) {
+    allObjects[data.map] = data.tactics;
+  } else {
+    allObjects[data.map] = data.objects || [];
+  }
+  
   if (data.map === currentMap) {
-    objects = allObjects[data.map];
+    objects = allObjects[currentMap][currentTactic] || [];
     loadBackground(currentMap);
   }
 });
