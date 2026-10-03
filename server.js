@@ -746,7 +746,8 @@ socket.on('disconnect', async (reason) => {
     }
   }
 });
-      
+  
+});      
 
 function isValidString(str) {
   if (typeof str !== 'string' || str.length > 15) return false;
