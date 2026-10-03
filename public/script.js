@@ -1273,26 +1273,6 @@ socket.on('map-changed', (data) => {
   loadBackground(currentMap);
 });
 
-  currentTactic = data.currentTactic || 'Тактика 1';
-  tacticSelect.value = currentTactic;
-
-  if (!allObjects[currentMap]) {
-    allObjects[currentMap] = {};
-  }
-
-  if (!allObjects[currentMap][currentTactic]) {
-    allObjects[currentMap][currentTactic] = [];
-    objects = allObjects[currentMap][currentTactic];
-    drawObjects();
-
-    socket.emit('get-objects-for-tactic', { map: currentMap, tactic: currentTactic });
-  } else {
-    objects = allObjects[currentMap][currentTactic];
-  }
-
-  loadBackground(currentMap);
-});
-
 socket.on('tactic-objects', (data) => {
   const { map, tactic, objects: tacticObjects } = data;
 
