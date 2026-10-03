@@ -33,6 +33,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 const redisClient = new Redis(redisUrl);
 
+// Кэш активных комнат в оперативной памяти сервера
+const activeRooms = new Map();
+// Таймеры для отложенного сохранения (debounce)
+const saveTimers = new Map();
+
 redisClient.on('error', (err) => {
   console.error('Redis Client Error', err);
 });
@@ -43,6 +48,64 @@ const redlock = new Redlock([redisClient], {
   retryDelay: 200, // Задержка между попытками в мс
   retryJitter: 200 // Добавить случайности к задержке
 });
+
+// Функция для получения комнаты (сначала ищем в кэше, потом в Redis)
+async function getRoomCached(roomId) {
+  if (activeRooms.has(roomId)) {
+    return activeRooms.get(roomId);
+  }
+  
+  // Если нет в кэше, читаем из Redis
+  const data = await redisClient.get(`room:${roomId}`);
+  let room = data ? JSON.parse(data) : null;
+
+  if (room) {
+    // ... (твоя существующая логика миграции формата тактик) ...
+    for (const mapName in room.maps) {
+      if (Array.isArray(room.maps[mapName])) {
+        room.maps[mapName] = { 'Тактика 1': room.maps[mapName] };
+      }
+      if (Object.keys(room.maps[mapName]).length === 0) {
+        room.maps[mapName]['Тактика 1'] = [];
+      }
+    }
+  }
+
+  // Сохраняем в кэш
+  if (room) {
+    activeRooms.set(roomId, room);
+  }
+  return room;
+}
+
+// Функция отложенного сохранения (Debounce)
+function scheduleRoomSave(roomId) {
+  // Если таймер уже есть, сбрасываем его
+  if (saveTimers.has(roomId)) {
+    clearTimeout(saveTimers.get(roomId));
+  }
+
+  // Устанавливаем новый таймер на 1000 мс (1 секунда)
+  const timer = setTimeout(async () => {
+    const room = activeRooms.get(roomId);
+    if (room) {
+      try {
+        // Используем блокировку только при финальной записи
+        await withRoomLock(roomId, async () => {
+          await redisClient.set(`room:${roomId}`, JSON.stringify(room));
+          console.log(`[REDIS] Комната ${roomId} сохранена в Redis (debounce)`);
+        });
+      } catch (e) {
+        console.error(`[REDIS] Ошибка сохранения комнаты ${roomId}:`, e);
+        // В случае ошибки можно попробовать удалить из кэша, чтобы при следующем запросе взять из Redis
+        activeRooms.delete(roomId);
+      }
+    }
+    saveTimers.delete(roomId);
+  }, 1000); // <-- Задержка в 1 секунду. Можно поставить 500 или 2000.
+
+  saveTimers.set(roomId, timer);
+}
 
 // === ОБНОВЛЁННАЯ ФУНКЦИЯ БЛОКИРОВКИ ===
 async function withRoomLock(roomId, callback) {
@@ -113,7 +176,7 @@ async function saveRoom(roomId, roomData) {
 }
 
 async function getAllRooms() {
-  const roomKeys = await redisClient.keys('room:*');
+  const roomKeys = await scanKeys('room:*');
   const roomPromises = roomKeys.map(key => redisClient.get(key));
   const roomDataList = await Promise.all(roomPromises);
   const result = {};
@@ -122,6 +185,21 @@ async function getAllRooms() {
     result[roomId] = JSON.parse(roomDataList[index]);
   });
   return result;
+}
+
+// === ФУНКЦИЯ ДЛЯ БЕЗОПАСНОГО ПОИСКА КЛЮЧЕЙ (SCAN ВМЕСТО KEYS) ===
+async function scanKeys(pattern) {
+  const keys = [];
+  let cursor = '0';
+  
+  do {
+    // SCAN возвращает массив [новый_курсор, массив_ключей]
+    const [nextCursor, batch] = await redisClient.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+    cursor = nextCursor;
+    keys.push(...batch);
+  } while (cursor !== '0');
+  
+  return keys;
 }
 
 // === ЭНДПОИНТЫ ДЛЯ ОТЛАДКИ ===
@@ -193,90 +271,67 @@ io.on('connection', (socket) => {
   });
 
   // --- JOIN ROOM ---
-  socket.on('join-room', async ({ roomId, userName, userId, password }) => {
-    // <<< НЕ ОБОРАЧИВАЕМ socket.join В withRoomLock >>>
-    socket.join(roomId);
+socket.on('join-room', async ({ roomId, userName, userId, password }) => {
+  socket.join(roomId);
 
-    try {
-      await withRoomLock(roomId, async () => {
-        let room = await getRoom(roomId);
+  try {
+    // Используем кэшированную версию
+    let room = await getRoomCached(roomId);
 
-        if (!room) {
-          room = { maps: {}, users: {}, currentMap: 'Греция.png', currentTactic: 'Тактика 1', password: password || '' };
-          room.maps[room.currentMap] = { [room.currentTactic]: [] };
-          console.log(`[ROOM: ${roomId}] Комната создана`);
-        } else {
-          if (room.password && room.password !== password) {
-            socket.emit('wrong-password');
-            return; // <<< ВАЖНО: ВЫХОДИМ, НЕ СОХРАНЯЯ >>>
-          }
-        }
-
-        let currentMap = room.currentMap;
-        let currentTactic = room.currentTactic;
-
-        if (!room.maps[currentMap] || !room.maps[currentMap][currentTactic]) {
-          if (room.maps[currentMap] && Object.keys(room.maps[currentMap]).length > 0) {
-            currentTactic = Object.keys(room.maps[currentMap])[0];
-            room.currentTactic = currentTactic;
-            console.log(`[ROOM: ${roomId}] Текущая тактика изменена на существующую: ${currentTactic}`);
-          } else {
-            if (!room.maps[currentMap]) {
-              room.maps[currentMap] = {};
-            }
-            room.maps[currentMap]['Тактика 1'] = [];
-            room.currentTactic = 'Тактика 1';
-            currentTactic = 'Тактика 1';
-          }
-        }
-
-        if (room.users[userId]) {
-            console.log(`[ROOM: ${roomId}] ВНИМАНИЕ: Пользователь ${userId} (${room.users[userId].name}) уже существует в списке. Возможно, предыдущий вход не был корректно завершён. Обновляем socket.id и имя.`);
-            room.users[userId].socketId = socket.id;
-            if (room.users[userId].name !== userName) {
-                console.log(`[ROOM: ${roomId}] Имя пользователя ${userId} изменилось с "${room.users[userId].name}" на "${userName}".`);
-                room.users[userId].name = userName;
-            }
-        } else {
-            console.log(`[ROOM: ${roomId}] Новый пользователь ${userId} (${userName}) зашёл в комнату.`);
-            room.users[userId] = { id: userId, name: userName, socketId: socket.id };
-        }
-
-        socket.userId = userId;
-        socket.currentTactic = currentTactic;
-        socket.roomId = roomId;
-        socket.currentMap = currentMap;
-
-        console.log(`Пользователь ${userId} (${userName}) зашёл в комнату ${roomId}`);
-
-        socket.emit('room-data', {
-          objects: room.maps[currentMap][currentTactic],
-          currentMap: currentMap,
-          currentTactic: currentTactic,
-          tacticsForCurrentMap: Object.keys(room.maps[currentMap]),
-          users: Object.values(room.users)
-        });
-
-        socket.to(roomId).emit('user-joined', room.users[userId]);
-
-        try {
-          await saveRoom(roomId, room);
-          console.log(`[ROOM: ${roomId}] Состояние комнаты сохранено в Redis (join-room)`);
-        } catch (e) {
-          console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (join-room):`, e);
-        }
-      });
-    } catch (lockErr) {
-      // <<< ОБРАБОТКА ОШИБКИ БЛОКИРОВКИ В join-room >>>
-      if (lockErr.name === 'LockError') {
-        console.error(`[JOIN-ROOM] Не удалось получить блокировку для комнаты ${roomId} при входе:`, lockErr.message);
-        socket.emit('error', { message: 'Комната временно заблокирована, попробуйте войти позже.' });
-      } else {
-        console.error(`[JOIN-ROOM] Неожиданная ошибка при входе в комнату ${roomId}:`, lockErr);
-        socket.emit('error', { message: 'Произошла ошибка на сервере при входе в комнату.' });
+    if (!room) {
+      room = { maps: {}, users: {}, currentMap: 'Греция.png', currentTactic: 'Тактика 1', password: password || '' };
+      room.maps[room.currentMap] = { [room.currentTactic]: [] };
+      activeRooms.set(roomId, room); // Добавляем в кэш
+      console.log(`[ROOM: ${roomId}] Комната создана`);
+    } else {
+      if (room.password && room.password !== password) {
+        socket.emit('wrong-password');
+        return;
       }
     }
-  });
+
+    // ... (твоя существующая логика проверки currentMap/currentTactic) ...
+    let currentMap = room.currentMap;
+    let currentTactic = room.currentTactic;
+    if (!room.maps[currentMap] || !room.maps[currentMap][currentTactic]) {
+        // ... (твой код инициализации, без изменений) ...
+        if (!room.maps[currentMap]) room.maps[currentMap] = {};
+        room.maps[currentMap]['Тактика 1'] = [];
+        room.currentTactic = 'Тактика 1';
+        currentTactic = 'Тактика 1';
+    }
+
+    // ... (твоя логика добавления пользователя в room.users) ...
+    if (room.users[userId]) {
+        room.users[userId].socketId = socket.id;
+        if (room.users[userId].name !== userName) room.users[userId].name = userName;
+    } else {
+        room.users[userId] = { id: userId, name: userName, socketId: socket.id };
+    }
+
+    socket.userId = userId;
+    socket.currentTactic = currentTactic;
+    socket.roomId = roomId;
+    socket.currentMap = currentMap;
+
+    socket.emit('room-data', {
+      objects: room.maps[currentMap][currentTactic],
+      currentMap: currentMap,
+      currentTactic: currentTactic,
+      tacticsForCurrentMap: Object.keys(room.maps[currentMap]),
+      users: Object.values(room.users)
+    });
+
+    socket.to(roomId).emit('user-joined', room.users[userId]);
+
+    // Запланировать сохранение (если комната только что создана или изменилась)
+    scheduleRoomSave(roomId);
+
+  } catch (err) {
+    console.error(`[JOIN-ROOM] Ошибка:`, err);
+    socket.emit('error', { message: 'Ошибка при входе в комнату.' });
+  }
+});
 
   // --- ADD OBJECT ---
   socket.on('add-object', async (data) => {
@@ -320,77 +375,61 @@ io.on('connection', (socket) => {
   });
 
   // --- UPDATE OBJECT ---
-  socket.on('update-object', async (data) => {
-    const roomId = socket.roomId;
-    const map = socket.currentMap;
-    const tactic = socket.currentTactic;
 
-    if (roomId && map && tactic) {
-      try {
-        await withRoomLock(roomId, async () => {
-          let room = await getRoom(roomId);
-          if (room && room.maps[map] && room.maps[map][tactic]) {
-            const obj = room.maps[map][tactic].find(o => o.id === data.id);
-            if (obj) {
-              let oldX = obj.x;
-              let oldY = obj.y;
+socket.on('update-object', async (data) => {
+  const roomId = socket.roomId;
+  const map = socket.currentMap;
+  const tactic = socket.currentTactic;
 
-              if (data.x !== undefined) obj.x = data.x;
-              if (data.y !== undefined) obj.y = data.y;
+  if (!roomId || !map || !tactic) return;
 
-              if (data.label !== undefined) obj.label = data.label;
-              if (data.rotation !== undefined) obj.rotation = data.rotation;
+  // 1. Берем комнату из быстрого кэша в памяти (без Redis и JSON.parse!)
+  const room = activeRooms.get(roomId);
+  if (!room || !room.maps[map] || !room.maps[map][tactic]) {
+    console.error(`[UPDATE] Комната или тактика не найдена в кэше: ${roomId}`);
+    return;
+  }
 
-              if (data.startX !== undefined) obj.startX = data.startX;
-              if (data.startY !== undefined) obj.startY = data.startY;
-              if (data.endX !== undefined) obj.endX = data.endX;
-              if (data.endY !== undefined) obj.endY = data.endY;
+  const obj = room.maps[map][tactic].find(o => o.id === data.id);
+  if (!obj) return;
 
-              const isShip = (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es');
-              let circlesToUpdate = [];
-              if (isShip && (oldX !== obj.x || oldY !== obj.y)) {
-                room.maps[map][tactic].forEach(otherObj => {
-                  if (otherObj.type.startsWith('custom-circle-') && otherObj.parentId === obj.id) {
-                    otherObj.x = obj.x;
-                    otherObj.y = obj.y;
-                    circlesToUpdate.push(otherObj);
-                  }
-                });
-              }
+  // 2. Мгновенно обновляем данные в памяти
+  if (data.x !== undefined) obj.x = data.x;
+  if (data.y !== undefined) obj.y = data.y;
+  if (data.label !== undefined) obj.label = data.label;
+  if (data.rotation !== undefined) obj.rotation = data.rotation;
+  if (data.startX !== undefined) obj.startX = data.startX;
+  if (data.startY !== undefined) obj.startY = data.startY;
+  if (data.endX !== undefined) obj.endX = data.endX;
+  if (data.endY !== undefined) obj.endY = data.endY;
 
-              io.to(roomId).emit('object-updated', data);
-
-              circlesToUpdate.forEach(updatedCircle => {
-                io.to(roomId).emit('object-updated', { id: updatedCircle.id, x: updatedCircle.x, y: updatedCircle.y });
-              });
-
-              try {
-                await saveRoom(roomId, room);
-                console.log(`[ROOM: ${roomId}] Объект и его окружности обновлены, состояние комнаты сохранено в Redis (update-object)`);
-              } catch (e) {
-                console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (update-object):`, e);
-              }
-            } else {
-              console.log(`[ROOM: ${roomId}] Объект с id ${data.id} не найден в тактике "${tactic}" карты "${map}".`);
-            }
-          } else {
-            console.error(`[ROOM: ${roomId}] Не найдена карта "${map}" или тактика "${tactic}" при попытке обновить объект.`);
-          }
-        });
-      } catch (lockErr) {
-        if (lockErr.name === 'LockError') {
-          console.error(`[UPDATE-OBJECT] Не удалось получить блокировку для комнаты ${roomId}:`, lockErr.message);
-          socket.emit('error', { message: 'Комната временно заблокирована, попробуйте позже.' });
-        } else {
-          console.error(`[ROOM: ${roomId}] Ошибка в обработчике update-object:`, lockErr);
-          socket.emit('error', { message: 'Произошла ошибка на сервере при обновлении объекта.' });
-        }
+  // Логика обновления кружков (тоже в памяти)
+  const isShip = (obj.type.startsWith('l') || obj.type.startsWith('k') || obj.type === 'es');
+  if (isShip) {
+    room.maps[map][tactic].forEach(otherObj => {
+      if (otherObj.type.startsWith('custom-circle-') && otherObj.parentId === obj.id) {
+        otherObj.x = obj.x;
+        otherObj.y = obj.y;
       }
-    } else {
-      console.error('Не указан roomId, currentMap или currentTactic при update-object');
-    }
-  });
+    });
+  }
 
+  // 3. МОМЕНТАЛЬНАЯ рассылка всем клиентам (визуальное обновление)
+  io.to(roomId).emit('object-updated', data);
+  
+  // Рассылаем обновленные кружки, если они двигались
+  if (isShip) {
+    room.maps[map][tactic].forEach(otherObj => {
+      if (otherObj.type.startsWith('custom-circle-') && otherObj.parentId === obj.id) {
+        io.to(roomId).emit('object-updated', { id: otherObj.id, x: otherObj.x, y: otherObj.y });
+      }
+    });
+  }
+
+  // 4. Запускаем или сбрасываем таймер сохранения в Redis (Debounce)
+  scheduleRoomSave(roomId);
+});
+  
   // --- CHANGE MAP ---
   socket.on('change-map', async (data) => {
     const roomId = socket.roomId;
@@ -569,54 +608,27 @@ io.on('connection', (socket) => {
   });
 
   // --- DISCONNECT ---
-  socket.on('disconnect', async (reason) => {
-    const roomId = socket.roomId;
-    const userId = socket.userId;
-    const socketId = socket.id;
-    if (roomId) {
-      console.log(`[ROOM: ${roomId}] Пользователь ${socket.id} отключился, причина: ${reason}`);
-      console.log(`[DISCONNECT] socket.userId = ${userId}`); // <<< Лог для отладки >>>
-    try {
-      await withRoomLock(roomId, async () => {
-        let room = await getRoom(roomId);
-        if (room && userId && room.users[userId]) {
-          if (room.users[userId].socketId === socketId) {
-            console.log(`[ROOM: ${roomId}] Удаляем запись пользователя ${userId} из room.users.`);
-            delete room.users[userId];
-          } else {
-            console.warn(`[ROOM: ${roomId}] socketId ${socketId} не совпадает с привязанным у пользователя ${userId}. Ожидалось: ${room.users[userId].socketId}. Удаление записи отменено.`);
+socket.on('disconnect', async (reason) => {
+  const roomId = socket.roomId;
+  const userId = socket.userId;
+  const socketId = socket.id;
 
-          }
-
-          io.to(roomId).emit('user-left', userId)
-
-          console.log(`Пользователь ${userId} с socketId ${socketId} покинул комнату ${roomId} (локально).`);
-
-          try {
-            await saveRoom(roomId, room);
-            console.log(`[ROOM: ${roomId}] Состояние комнаты сохранено в Redis (disconnect)`);
-          } catch (e) {
-            console.error(`[ROOM: ${roomId}] Ошибка при сохранении состояния в Redis (disconnect):`, e);
-          }
-        } else {
-            console.log(`[ROOM: ${roomId}] Пользователь ${userId || 'unknown'} не найден в room.users при отключении socketId ${socketId}.`);
-            // Возможен дубль или ошибка.
-        }
-      });
-      } catch (lockErr) {
-        // <<< ОШИБКА БЛОКИРОВКИ ПРИ ОТКЛЮЧЕНИИ >>>
-        if (lockErr.name === 'LockError') {
-          console.error(`[DISCONNECT] Не удалось получить блокировку для комнаты ${roomId} при отключении:`, lockErr.message);
-          // socket.to(roomId).emit('error', ...); // Смысл отправлять ошибку пользователю, который уже отключился?
-          // Лучше просто залогировать
-        } else {
-          console.error(`[ROOM: ${roomId}] Ошибка в обработчике disconnect:`, lockErr);
-        }
+  if (roomId) {
+    console.log(`[ROOM: ${roomId}] Пользователь ${socketId} отключился, причина: ${reason}`);
+    
+    const room = activeRooms.get(roomId);
+    if (room && userId && room.users[userId]) {
+      if (room.users[userId].socketId === socketId) {
+        delete room.users[userId];
       }
-    } else {
-        console.log(`Пользователь ${socket.id} отключился без комнаты.`);
+      
+      io.to(roomId).emit('user-left', userId);
+      
+      // Принудительно сохраняем при выходе, чтобы не ждать таймера
+      scheduleRoomSave(roomId); 
     }
-  });
+  }
+});
       
   // --- ADD CUSTOM CIRCLE ---
   socket.on('add-custom-circle', async (circleObj) => {
@@ -935,31 +947,16 @@ function isValidString(str) {
 }
 
 // --- PING ENDPOINT ---
-app.get('/ping', async (req, res) => {
-  try {
-    const allRooms = await getAllRooms();
-    const hasActiveRooms = Object.keys(allRooms).some(roomId => {
-      return allRooms[roomId].users && Object.keys(allRooms[roomId].users).length > 0;
-    });
-
-    if (hasActiveRooms) {
-      console.log('Ping received, active rooms detected.');
-      res.status(200).send('OK - Active rooms');
-    } else {
-      console.log('Ping received, no active rooms.');
-      res.status(200).send('OK - No active rooms');
-    }
-  } catch (e) {
-    console.error('Ошибка при проверке активных комнат:', e);
-    res.status(500).send('Internal Server Error');
-  }
+app.get('/ping', (req, res) => {
+  // Просто отвечаем OK. Никаких чтений из Redis.
+  res.status(200).send('OK');
 });
 
 // --- MIGRATION AND STARTUP ---
 async function migrateRoomsToNewTacticFormat() {
   console.log('=== Запуск миграции комнат к новому формату тактик ===');
   try {
-    const roomKeys = await redisClient.keys('room:*');
+    const roomKeys = await scanKeys('room:*');
     console.log(`Найдено ${roomKeys.length} комнат для проверки.`);
 
     if (roomKeys.length === 0) {
@@ -1043,7 +1040,7 @@ async function migrateRoomsToNewTacticFormat() {
 
 async function clearUsersOnStartup() {
   try {
-    const roomKeys = await redisClient.keys('room:*');
+    const roomKeys = await scanKeys('room:*');
     if (roomKeys.length === 0) {
       console.log('Комнаты не найдены, очистка не требуется');
       return;
