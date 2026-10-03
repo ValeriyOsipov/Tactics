@@ -244,7 +244,7 @@ function drawObjects() {
     console.error('currentTactic:', currentTactic);
     console.error('allObjects[currentMap]:', allObjects[currentMap]);
     console.error('allObjects[currentMap][currentTactic]:', allObjects[currentMap] ? allObjects[currentMap][currentTactic] : 'N/A');
-    objects = []; // Восстановим, если сломалось
+    objects = [];
   }
   
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -347,7 +347,11 @@ function drawObjects() {
       ctx.arc(obj.x, obj.y, radiusPx, 0, Math.PI * 2);
       ctx.strokeStyle = obj.color;
       ctx.lineWidth = 2;
-      ctx.setLineDash([5, 5]);
+      if (obj.parentId) {
+        ctx.setLineDash([5, 5]);
+      } else {
+        ctx.setLineDash([15, 10]);
+      }
       ctx.stroke();
       ctx.setLineDash([]);
     }
@@ -535,7 +539,6 @@ deleteTacticBtn.onclick = () => {
   }
 };
 
-// 1. ОБНОВИ object-added (добавь проверку на дубликат)
 socket.on('object-added', (obj) => {
   const exists = objects.find(o => o.id === obj.id);
   if (!exists) {
@@ -545,7 +548,6 @@ socket.on('object-added', (obj) => {
   }
 });
 
-// 2. ОБНОВИ vector-added (аналогично)
 socket.on('vector-added', (obj) => {
   const exists = objects.find(o => o.id === obj.id);
   if (!exists) {
@@ -555,7 +557,6 @@ socket.on('vector-added', (obj) => {
   }
 });
 
-// 3. ОБНОВИ object-updated (удаляй дубликаты при обновлении)
 socket.on('object-updated', (data) => {
   const obj = objects.find(o => o.id === data.id);
   if (obj) {
@@ -571,7 +572,6 @@ socket.on('object-updated', (data) => {
       if (data.rotation !== undefined) obj.rotation = data.rotation;
     }
     
-    // Удаляем все дубликаты этого объекта (если они есть)
     objects = objects.filter((o, index) => {
       return o.id !== data.id || index === objects.findIndex(x => x.id === data.id);
     });
@@ -665,6 +665,8 @@ canvas.onclick = (e) => {
   const id = Date.now() + Math.random();
 
   if (circleActionMode) {
+    let clickedShip = null;
+    
     for (let i = objects.length - 1; i >= 0; i--) {
       const obj = objects[i];
       let inBounds = false;
@@ -678,37 +680,45 @@ canvas.onclick = (e) => {
       }
 
       if (inBounds) {
-        if (circleActionMode === 'add') {
-          const circleObj = {
-            id: Date.now() + '-' + Math.random(),
-            type: `custom-circle-${currentCircleColor}`,
-            parentId: obj.id,
-            x: obj.x,
-            y: obj.y,
-            radiusKm: currentCircleRadiusKm,
-            color: currentCircleColor
-          };
-          socket.emit('add-custom-circle', circleObj);
-        } else if (circleActionMode === 'remove_all') {
-          socket.emit('remove-all-custom-circles', { parentId: obj.id });
-        }
-
-        circleActionMode = null;
-        addCircleBtn.textContent = 'Добавить окружность';
-        removeAllCirclesBtn.textContent = 'Удалить все кастомные окр. с корабля';
-        addCircleBtn.disabled = false;
-        removeAllCirclesBtn.disabled = false;
-        return;
+        clickedShip = obj;
+        break;
       }
     }
-    if (circleActionMode) {
-      console.log('DEBUG: Действие отменено: клик не на корабль.');
-      circleActionMode = null;
-      addCircleBtn.textContent = 'Добавить окружность';
-      removeAllCirclesBtn.textContent = 'Удалить все кастомные окр. с корабля';
-      addCircleBtn.disabled = false;
-      removeAllCirclesBtn.disabled = false;
+
+    if (circleActionMode === 'add') {
+      if (clickedShip) {
+        const circleObj = {
+          id: Date.now() + '-' + Math.random(),
+          type: `custom-circle-${currentCircleColor}`,
+          parentId: clickedShip.id,
+          x: clickedShip.x,
+          y: clickedShip.y,
+          radiusKm: currentCircleRadiusKm,
+          color: currentCircleColor
+        };
+        socket.emit('add-custom-circle', circleObj);
+      } else {
+        const circleObj = {
+          id: Date.now() + '-' + Math.random(),
+          type: `custom-circle-${currentCircleColor}`,
+          x: x,
+          y: y,
+          radiusKm: currentCircleRadiusKm,
+          color: currentCircleColor
+        };
+        socket.emit('add-custom-circle', circleObj);
+      }
+    } else if (circleActionMode === 'remove_all') {
+      if (clickedShip) {
+        socket.emit('remove-all-custom-circles', { parentId: clickedShip.id });
+      }
     }
+
+    circleActionMode = null;
+    addCircleBtn.textContent = 'Добавить окружность';
+    removeAllCirclesBtn.textContent = 'Удалить все кастомные окр. с корабля';
+    addCircleBtn.disabled = false;
+    removeAllCirclesBtn.disabled = false;
     return;
   }
   
@@ -774,7 +784,20 @@ canvas.oncontextmenu = (e) => {
       }
     }
 
+    else if (obj.type.startsWith('custom-circle-') && !obj.parentId) {
+      const mapSizeKm = mapSizes[currentMap] || 42;
+      const radiusPx = (obj.radiusKm / mapSizeKm) * canvas.width;
+      const dist = Math.sqrt((x - obj.x) ** 2 + (y - obj.y) ** 2);
+      inBounds = dist <= radiusPx;
+    }
+    
     if (inBounds) {
+      if (obj.type.startsWith('custom-circle-') && !obj.parentId) {
+        socket.emit('remove-object', { id: obj.id });
+        objects.splice(i, 1);
+        drawObjects();
+        return false;
+      }
       obj.rotation = (obj.rotation || 0) + 1;
       if (obj.rotation > 7) obj.rotation = 0;
       allObjects[currentMap][currentTactic] = objects;
@@ -812,7 +835,8 @@ canvas.onmousedown = (e) => {
         }
       } else if (obj.type === 'note') {
         inBounds = x >= obj.x - 30 && x <= obj.x + 70 && y >= obj.y - 20 && y <= obj.y + 10;
-      } else if (obj.type.startsWith('vector-')) {
+      } 
+        else if (obj.type.startsWith('vector-')) {
         const centerX = (obj.startX + obj.endX) / 2;
         const centerY = (obj.startY + obj.endY) / 2;
 
@@ -820,6 +844,13 @@ canvas.onmousedown = (e) => {
         inBounds = dist < 20;
       }
 
+      else if (obj.type.startsWith('custom-circle-') && !obj.parentId) {
+        const mapSizeKm = mapSizes[currentMap] || 42;
+        const radiusPx = (obj.radiusKm / mapSizeKm) * canvas.width;
+        const dist = Math.sqrt((x - obj.x) ** 2 + (y - obj.y) ** 2);
+        inBounds = dist <= radiusPx;
+      }
+      
       if (inBounds) {
         clickedOnObject = true;
         break;
@@ -904,7 +935,13 @@ canvas.onmousedown = (e) => {
       const dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
       inBounds = dist < 20;
     }
-
+    else if (obj.type.startsWith('custom-circle-') && !obj.parentId) {
+      const mapSizeKm = mapSizes[currentMap] || 42;
+      const radiusPx = (obj.radiusKm / mapSizeKm) * canvas.width;
+      const dist = Math.sqrt((x - obj.x) ** 2 + (y - obj.y) ** 2);
+      inBounds = dist <= radiusPx; // Попадание внутрь радиуса
+    }
+    
     if (inBounds) {
       selectedObject = obj;
 
