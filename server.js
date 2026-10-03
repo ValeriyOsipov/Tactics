@@ -279,7 +279,7 @@ socket.on('join-room', async ({ roomId, userName, userId, password }) => {
     let room = await getRoomCached(roomId);
 
     if (!room) {
-      room = { maps: {}, users: {}, currentMap: 'Греция.png', currentTactic: 'Тактика 1', password: password || '' };
+      room = { maps: {}, users: {}, currentMap: 'Греция.png', currentTactic: 'Тактика 1', lastTacticByMap: {}, password: password || '' };
       room.maps[room.currentMap] = { [room.currentTactic]: [] };
       activeRooms.set(roomId, room); // Добавляем в кэш
       console.log(`[ROOM: ${roomId}] Комната создана`);
@@ -433,44 +433,57 @@ socket.on('get-map-objects', (data) => {
   });
 });
 
-  // --- CHANGE MAP ---
-  socket.on('change-map', async (data) => {
-    const roomId = socket.roomId;
-    if (!roomId) return;
+// --- CHANGE MAP ---
+socket.on('change-map', async (data) => {
+  const roomId = socket.roomId;
+  if (!roomId) return;
 
-    const room = activeRooms.get(roomId);
-    if (!room) {
-      console.error(`[CHANGE-MAP] Комната не найдена в кэше: ${roomId}`);
-      return;
-    }
+  const room = activeRooms.get(roomId);
+  if (!room) {
+    console.error(`[CHANGE-MAP] Комната не найдена в кэше: ${roomId}`);
+    return;
+  }
 
-    if (!room.maps[data.map]) {
-      room.maps[data.map] = { 'Тактика 1': [] };
-    } else if (Object.keys(room.maps[data.map]).length === 0) {
-      room.maps[data.map]['Тактика 1'] = [];
-    }
+  // Сохраняем текущую тактику для старой карты перед переключением
+  if (!room.lastTacticByMap) {
+    room.lastTacticByMap = {};
+  }
+  room.lastTacticByMap[room.currentMap] = room.currentTactic;
 
-    room.currentMap = data.map;
-    const firstTactic = Object.keys(room.maps[data.map])[0];
-    room.currentTactic = firstTactic;
+  if (!room.maps[data.map]) {
+    room.maps[data.map] = { 'Тактика 1': [] };
+  } else if (Object.keys(room.maps[data.map]).length === 0) {
+    room.maps[data.map]['Тактика 1'] = [];
+  }
 
-    socket.currentMap = data.map;
-    socket.currentTactic = firstTactic;
+  room.currentMap = data.map;
+  
+  // Восстанавливаем последнюю тактику для новой карты, если она есть
+  const lastTactic = room.lastTacticByMap[data.map];
+  if (lastTactic && room.maps[data.map][lastTactic]) {
+    room.currentTactic = lastTactic;
+  } else {
+    // Иначе берем первую тактику из списка
+    room.currentTactic = Object.keys(room.maps[data.map])[0];
+  }
 
-    const socketsInRoom = await io.in(roomId).fetchSockets();
-    for (const sock of socketsInRoom) {
-      sock.currentMap = data.map;
-      sock.currentTactic = firstTactic;
-    }
+  socket.currentMap = data.map;
+  socket.currentTactic = room.currentTactic;
 
-    io.to(roomId).emit('map-changed', {
-      map: data.map,
-      tacticsList: Object.keys(room.maps[data.map]),
-      currentTactic: room.currentTactic
-    });
+  const socketsInRoom = await io.in(roomId).fetchSockets();
+  for (const sock of socketsInRoom) {
+    sock.currentMap = data.map;
+    sock.currentTactic = room.currentTactic;
+  }
 
-    scheduleRoomSave(roomId);
+  io.to(roomId).emit('map-changed', {
+    map: data.map,
+    tacticsList: Object.keys(room.maps[data.map]),
+    currentTactic: room.currentTactic
   });
+
+  scheduleRoomSave(roomId);
+});
 
   // --- ADD VECTOR ---
   socket.on('add-vector', (vectorObj) => {
