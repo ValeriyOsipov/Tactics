@@ -415,24 +415,23 @@ socket.on('update-object', async (data) => {
   scheduleRoomSave(roomId);
 });
   
-  // --- GET MAP OBJECTS (не использует блокировку, только чтение) ---
-  socket.on('get-map-objects', async (data) => {
-    const roomId = socket.roomId;
-    if (roomId) {
-      try {
-        let room = await getRoom(roomId); // <<< Чтение, без блокировки >>>
-        if (room && room.maps[data.map]) {
-          socket.emit('map-objects', {
-            map: data.map,
-            objects: room.maps[data.map].objects
-          });
-        }
-      } catch (e) {
-        console.error(`[GET-MAP-OBJECTS] Ошибка при получении объектов карты ${data.map} для комнаты ${roomId}:`, e);
-        socket.emit('error', { message: 'Ошибка при получении объектов карты.' });
-      }
-    }
+// Улучшенная версия на сервере
+socket.on('get-map-objects', (data) => {
+  const roomId = socket.roomId;
+  if (!roomId) return;
+
+  const room = activeRooms.get(roomId);
+  if (!room || !room.maps[data.map]) {
+    socket.emit('map-objects', { map: data.map, tactics: {} });
+    return;
+  }
+
+  // Отправляем структуру по тактикам
+  socket.emit('map-objects', {
+    map: data.map,
+    tactics: room.maps[data.map] // { "Тактика 1": [...], "Тактика 2": [...] }
   });
+});
 
   // --- CHANGE MAP ---
   socket.on('change-map', async (data) => {
