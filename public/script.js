@@ -535,13 +535,31 @@ deleteTacticBtn.onclick = () => {
 };
 
 socket.on('object-added', (obj) => {
-  objects.push(obj);
-  if (!allObjects[currentMap]) allObjects[currentMap] = {};
+  const exists = objects.find(o => o.id === obj.id);
+  if (!exists) {
+    objects.push(obj);
+    if (!allObjects[currentMap]) allObjects[currentMap] = {};
+    allObjects[currentMap][currentTactic] = objects;
+  }
 });
 
 socket.on('vector-added', (obj) => {
-  objects.push(obj);
-  if (!allObjects[currentMap]) allObjects[currentMap] = {};
+  const exists = objects.find(o => o.id === obj.id);
+  if (!exists) {
+    objects.push(obj);
+    if (!allObjects[currentMap]) allObjects[currentMap] = {};
+    allObjects[currentMap][currentTactic] = objects;
+  }
+});
+
+socket.on('object-removed', (data) => {
+  const initialLength = objects.length;
+  objects = objects.filter(o => o.id !== data.id);
+  
+  if (objects.length !== initialLength) {
+    if (!allObjects[currentMap]) allObjects[currentMap] = {};
+    allObjects[currentMap][currentTactic] = objects;
+  }
 });
 
 socket.on('object-updated', (data) => {
@@ -558,13 +576,6 @@ socket.on('object-updated', (data) => {
       if (data.label !== undefined) obj.label = data.label;
       if (data.rotation !== undefined) obj.rotation = data.rotation;
     }
-  }
-});
-
-socket.on('object-removed', (data) => {
-  const index = objects.findIndex(o => o.id === data.id);
-  if (index !== -1) {
-    objects.splice(index, 1);
   }
 });
 
