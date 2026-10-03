@@ -1227,9 +1227,14 @@ mapSelect.onchange = (e) => {
 };
 
 socket.on('map-objects', (data) => {
-  allObjects[data.map] = data.objects || [];
+  if (data.tactics) {
+    allObjects[data.map] = data.tactics;
+  } else {
+    allObjects[data.map] = data.objects || [];
+  }
+  
   if (data.map === currentMap) {
-    objects = allObjects[data.map];
+    objects = allObjects[currentMap][currentTactic] || [];
     loadBackground(currentMap);
   }
 });
