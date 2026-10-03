@@ -354,6 +354,22 @@ function drawObjects() {
       }
       ctx.stroke();
       ctx.setLineDash([]);
+
+
+      const labelText = (Math.round(obj.radiusKm * 10) / 10) + 'км'; 
+      const angle = -Math.PI / 6; 
+      const labelX = obj.x + radiusPx * Math.cos(angle);
+      const labelY = obj.y + radiusPx * Math.sin(angle);
+      ctx.font = 'bold 12px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.strokeStyle = 'black';
+      ctx.lineWidth = 3;
+      ctx.lineJoin = 'round';
+      ctx.strokeText(labelText, labelX, labelY);
+      ctx.fillStyle = 'white'; 
+      ctx.fillText(labelText, labelX, labelY);
+      
     }
   });
 
