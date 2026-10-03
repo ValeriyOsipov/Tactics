@@ -534,6 +534,7 @@ deleteTacticBtn.onclick = () => {
   }
 };
 
+// 1. ОБНОВИ object-added (добавь проверку на дубликат)
 socket.on('object-added', (obj) => {
   const exists = objects.find(o => o.id === obj.id);
   if (!exists) {
@@ -543,6 +544,7 @@ socket.on('object-added', (obj) => {
   }
 });
 
+// 2. ОБНОВИ vector-added (аналогично)
 socket.on('vector-added', (obj) => {
   const exists = objects.find(o => o.id === obj.id);
   if (!exists) {
@@ -552,16 +554,7 @@ socket.on('vector-added', (obj) => {
   }
 });
 
-socket.on('object-removed', (data) => {
-  const initialLength = objects.length;
-  objects = objects.filter(o => o.id !== data.id);
-  
-  if (objects.length !== initialLength) {
-    if (!allObjects[currentMap]) allObjects[currentMap] = {};
-    allObjects[currentMap][currentTactic] = objects;
-  }
-});
-
+// 3. ОБНОВИ object-updated (удаляй дубликаты при обновлении)
 socket.on('object-updated', (data) => {
   const obj = objects.find(o => o.id === data.id);
   if (obj) {
@@ -576,6 +569,24 @@ socket.on('object-updated', (data) => {
       if (data.label !== undefined) obj.label = data.label;
       if (data.rotation !== undefined) obj.rotation = data.rotation;
     }
+    
+    // Удаляем все дубликаты этого объекта (если они есть)
+    objects = objects.filter((o, index) => {
+      return o.id !== data.id || index === objects.findIndex(x => x.id === data.id);
+    });
+    
+    if (!allObjects[currentMap]) allObjects[currentMap] = {};
+    allObjects[currentMap][currentTactic] = objects;
+  }
+});
+
+socket.on('object-removed', (data) => {
+  const initialLength = objects.length;
+  objects = objects.filter(o => o.id !== data.id);
+  
+  if (objects.length !== initialLength) {
+    if (!allObjects[currentMap]) allObjects[currentMap] = {};
+    allObjects[currentMap][currentTactic] = objects;
   }
 });
 
