@@ -784,6 +784,13 @@ canvas.oncontextmenu = (e) => {
       }
     }
 
+    else if (obj.type.startsWith('custom-circle-') && !obj.parentId) {
+      const mapSizeKm = mapSizes[currentMap] || 42;
+      const radiusPx = (obj.radiusKm / mapSizeKm) * canvas.width;
+      const dist = Math.sqrt((x - obj.x) ** 2 + (y - obj.y) ** 2);
+      inBounds = dist <= radiusPx;
+    }
+    
     if (inBounds) {
       if (obj.type.startsWith('custom-circle-') && !obj.parentId) {
         socket.emit('remove-object', { id: obj.id });
@@ -829,12 +836,6 @@ canvas.onmousedown = (e) => {
       } else if (obj.type === 'note') {
         inBounds = x >= obj.x - 30 && x <= obj.x + 70 && y >= obj.y - 20 && y <= obj.y + 10;
       } 
-        else if (obj.type.startsWith('custom-circle-') && !obj.parentId) {
-        const mapSizeKm = mapSizes[currentMap] || 42;
-        const radiusPx = (obj.radiusKm / mapSizeKm) * canvas.width;
-        const dist = Math.sqrt((x - obj.x) ** 2 + (y - obj.y) ** 2);
-        inBounds = dist <= radiusPx; // Попадание внутрь радиуса
-      }
         else if (obj.type.startsWith('vector-')) {
         const centerX = (obj.startX + obj.endX) / 2;
         const centerY = (obj.startY + obj.endY) / 2;
@@ -843,6 +844,13 @@ canvas.onmousedown = (e) => {
         inBounds = dist < 20;
       }
 
+      else if (obj.type.startsWith('custom-circle-') && !obj.parentId) {
+        const mapSizeKm = mapSizes[currentMap] || 42;
+        const radiusPx = (obj.radiusKm / mapSizeKm) * canvas.width;
+        const dist = Math.sqrt((x - obj.x) ** 2 + (y - obj.y) ** 2);
+        inBounds = dist <= radiusPx;
+      }
+      
       if (inBounds) {
         clickedOnObject = true;
         break;
@@ -927,7 +935,13 @@ canvas.onmousedown = (e) => {
       const dist = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
       inBounds = dist < 20;
     }
-
+    else if (obj.type.startsWith('custom-circle-') && !obj.parentId) {
+      const mapSizeKm = mapSizes[currentMap] || 42;
+      const radiusPx = (obj.radiusKm / mapSizeKm) * canvas.width;
+      const dist = Math.sqrt((x - obj.x) ** 2 + (y - obj.y) ** 2);
+      inBounds = dist <= radiusPx; // Попадание внутрь радиуса
+    }
+    
     if (inBounds) {
       selectedObject = obj;
 
