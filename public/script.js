@@ -87,7 +87,8 @@ const mapSizes = {
   'Слёзы пустыни.png': 42,
   'Сонный Бохайвань.png': 42,
   'Фарерские острова.png': 42,
-  'Атлантика.png': 42
+  'Атлантика.png': 42,
+  'Северное сияние.png': 48
 };
 
 const helpBtn = document.getElementById('help-btn');
